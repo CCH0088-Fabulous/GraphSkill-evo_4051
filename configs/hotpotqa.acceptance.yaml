@@ -1,0 +1,2 @@
+_base_: acceptance.common.yaml
+_presets_: [hotpotqa.pilot]

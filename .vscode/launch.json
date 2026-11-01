@@ -1,0 +1,23 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Offline SearchQA full loop",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "repro",
+      "args": ["smoke", "--dataset", "searchqa"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Infrastructure doctor",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "repro",
+      "args": ["doctor", "--config", "configs/searchqa.pilot.yaml"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "version": "v1",
+  "manifest": "manifests/experiment-v1/manifest.json",
+  "sha256": "9fefe05e56dd8bb944e6fbe9643c5f9d544ce3c11214899bafcf4e8536f82a56",
+  "datasets": {
+    "searchqa": "data/processed/searchqa",
+    "hotpotqa": "data/processed/hotpotqa"
+  }
+}

@@ -1,146 +1,228 @@
-从今天 **2026 年 10 月 28 日到 12 月 1 日，首尾共 35 天**。建议把 **11 月 29 日设为内部交付日**，最后两天用于检查、演练和提交。
+﻿# GraphSkillEvo 复现基础设施
 
-分工具体落实为：
+面向成员 A 的运行工程：原生 Windows + 32GB 显存，当前使用 Transformers 加载用户提供的 `E:\Qwen3.5-9B`，BF16 推理。
+已准备官方源码、真实数据、独立环境、项目共享配置、统一入口、评分、日志与成本计量。**成员 A 的两数据集正式验证集对照已完成：八个子运行全部成功，留出测试尚未执行。v1 保存为历史记录，不再强制校验其模型路径和环境。**
+原有团队分工和日程完整保存在 [docs/team-plan.md](docs/team-plan.md)。
+正式复现的步骤、命令和成员 A 的交付物见 [docs/reproduction-plan.md](docs/reproduction-plan.md)。
+本次 pilot 的设置、输出、截断及重试问题见 [docs/pilot-results.md](docs/pilot-results.md)。
+历史 v1 参数、截断/重试规则和验收证据见 [docs/frozen-settings-v1.md](docs/frozen-settings-v1.md)。
+本次正式验证集对照的范围和结果记录见 [docs/formal-results.md](docs/formal-results.md)。
 
-| 成员                  | 主要责任                               | 必须独立交出的成果                         |
-| ------------------- | ---------------------------------- | --------------------------------- |
-| **A 复现与运行负责人 （钟）**  | 跑通原方法，建立统一运行入口、模型接口、日志和成本计量；运行原始基线 | 可复现环境；原方法结果；无技能与初始技能基线；技能进化图；运行说明 |
-| **B 创新与改进负责人（陶）**   | 检查原选择机制，实现失败案例选择策略、消融及其运行；解释方法与贡献  | 改进选择器；消融开关；改进结果；算法说明；复杂度与局限分析     |
-| **C 评测与结果分析负责人（李）** | 固定数据、核验评分、建立失败清单、比较逐题变化、生成图表并整合报告  | 评测与分析脚本；失败分类；主结果与成本图；案例；报告整合稿     |
+## 当前环境
 
-**C 应当拥有评测和分析代码。** 附件包含个人代码面试，C 需要能解释结果如何计算、如何追溯，也需要理解完整流程。报告各章节由对应负责人提供初稿，C 负责整合，避免最后全部压给一个人。
-
-同时，B 从第一周就阅读原代码、设计接口和准备选择器；不必等 A 完成全部复现。C 从第一天开始固定数据和评分规范，第一批输出出现后立即分析。
-
-下面是建议的具体安排。
-
-|日期|A 复现与运行|B 创新与改进|C 评测与分析|共同验收|
-|---|---|---|---|---|
-|**10/28–11/1**|安装环境；跑通小规模完整进化；测调用和耗时|阅读变异与失败选择代码；确定改动位置和接口|固定数据 ID；核验 EM/F1；搭建结果读取脚本|**一条完整轨迹可追溯；两数据集接入方案明确**|
-|**11/2–11/8**|完成原方法开发实验及两项基础基线|根据中间结果实现选择器原型，不改其他机制|建立两个数据集的完整开发失败清单，提出有证据的问题|**原方法能运行；改进假设有依据**|
-|**11/9–11/13**|稳定统一运行框架，核对资源记录|完成改进、消融和开发集验证|比较改对与改错，检查预算公平性和机制是否触发|**11/13 冻结方法、配置和实验矩阵**|
-|**11/14–11/20**|完成原始条件的正式运行与核查|完成改进及消融运行|汇总留出测试结果、成本和完整失败分析|**全部必做主结果完成**|
-|**11/21–11/24**|技能进化回放、复现检查、演示准备|有预算时做迁移扩展；否则完善方法解释与检查|完成主表、案例和报告初稿|**核心报告成形；11/24 停止扩展实验**|
-|**11/25–11/29**|完善代码、README、演示|完善方法、伪代码、消融解释|整合六页报告、Poster、图表与引用|**11/29 形成可直接提交的完整版本**|
-|**11/30–12/1**|交叉复现与提交检查|模拟代码面试与方法答辩|核对数字、附件和提交记录|**完成提交，保留回执**|
-
-这里有一个需要提前处理的工程问题：**官方 README 目前列出了 SearchQA，但没有列出 HotpotQA 的现成配置。** 课程提供的 HotpotQA 数据、划分与接入方式应在第一阶段确认，尽早跑通一个样例。[ruisun7/GraphSkillEvo · GitHub](https://github.com/ruisun7/GraphSkillEvo?utm_source=chatgpt.com)
-
-**创新方向建议沿用附件的 Option B：失败案例选择策略。** 把工作集中在“类型覆盖与近重复抑制”上，保留原优化器接收的字段和提示词。
-
-B 需要回答这些具体问题：
-
-- 每轮从哪个**训练失败池**选择案例？
-- 怎样避免相似失败反复占用名额？
-- 怎样兼顾不同失败类型与持续失败样例？
-- 技能更新后，失败池如何刷新？
-- 新选择器是否真的触发，并影响了候选技能？
-
-C 用开发失败帮助设计分类和诊断；**正式技能更新仍使用训练材料**。不要把测试失败反馈给 B 继续改方法，也不要同时修改案例选择与优化器输入内容。
-
-核心实验先固定为以下五组，两个数据集都覆盖：
-
-|条件|作用|
+| 项目 | 已验证配置 |
 |---|---|
-|无技能|检验加入技能的价值|
-|初始技能|检验进化相对初始化的价值|
-|原始 GraphSkillEvo|主比较基线|
-|改进失败选择策略|检验主要贡献|
-|一项聚焦消融|例如移除近重复抑制，检验关键设计|
+| Python | 3.13.11，项目内 `.venv` |
+| GPU 显存 | 32GB |
+| 当前推理引擎 | PyTorch 2.14.1+cu130 / Transformers 5.21.1，BF16 / SDPA |
+| 当前模型 | `E:\Qwen3.5-9B`，4 个原格式权重分片 |
+| GPU 验证 | 双数据集两轮验收使用 16K 上下文，整卡显存采样峰值约 21.8 GiB |
+| 备用后端 | llama.cpp b10901 / CUDA 13.3，保留已有 Qwen3.8 GGUF 路线 |
+| 官方源码 | GraphSkillEvo `722a8a913b05dc9d1b4078f0bec604cde4dc7529` |
+| 项目共享配置 | 根 `config.yaml`；各数据集入口选择其中的方案 |
 
-**迁移扩展放在这些结果完成之后。**如果做附件中的 SearchQA → HotpotQA 扩展，应完整比较直接迁移、目标域适应、目标域独立进化。预算不足时取消整个扩展，优先保住主比较和消融。
+无需安装 WSL2。Linux/vLLM 脚本仅作为可选路线，尚未在你的 Linux 系统安装验证。
+PDF 中的 A6000 与 40 GPU 小时作为资源参考；真正的调用和生成 token 预算通过配置和日志控制。
 
-两位开发者的运行也要统一管理。若只有一张 GPU，可以并行写代码、分析日志，正式大运行采用同一队列。A 和 B 共用数据、模型版本、解码、调用与 token 限制；C 核对实际消耗。相同轮数不一定代表相同计算预算。
+## 安装
 
-40 GPU 小时可以先按下面分配，之后用试跑修正：
+准备 Python 3.13（已验证 3.13.11）、Git，以及支持 CUDA 和 BF16 的 32GB 显存显卡与兼容驱动。
+在项目根目录用 PowerShell 创建独立环境，拉取锁定版本的上游源码，再通过 [requirements.txt](requirements.txt) 安装依赖：
 
-|用途|预留 GPU 小时|
-|---|---|
-|环境、接入与小规模试跑|3|
-|原始优化器及基础实验|7|
-|改进优化器|7|
-|聚焦消融|7|
-|最终测试推理|6|
-|演示与复现检查|2|
-|失败与重试余量|6|
-|可选迁移扩展|2|
-|**合计**|**40**|
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe scripts/fetch_sources.py
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip check
+```
 
-这是资源分配方案，不是实测耗时。扩展必须先有完整试跑估算；不足以完成公平对照时取消。若试跑发现主实验过重，在正式比较前统一缩小训练子集或进化规模，原方法与改进方法同步调整。
+`requirements.txt` 复用 `requirements/lock.windows.txt` 的固定版本，并安装本项目与上游 GraphSkillEvo。
+其中包含 PyTorch CUDA、Transformers、数据准备、模型服务和开发检查所需依赖；上游源码须在安装前准备好。
+模型权重由使用者单独提供，当前模型路径由 `config.yaml` 中的 `model.local_path` 指定；数据准备和服务启动方式见下文。
 
-按这个范围安排，建议 **A、B 每人每周约 12–15 小时，C 每周约 10–12 小时**，五周约为 **170–210 人小时**。它是规划假设，第一周的实际进度会决定是否需要进一步收缩。
+### 组员环境配置
 
-**最重要的三个期限是：11 月 8 日得到可靠基线和开发失败清单，11 月 13 日冻结方法，11 月 20 日完成必做实验。**这样后面还有时间把结果、代码和答辩准备做完整。
+根 [config.yaml](config.yaml) 集中管理模型路径和服务、解码参数、数据准备、数据集位置、实验规模和预算。`presets` 中的 `course`、`acceptance`、`offline` 与数据集方案组合出不同实验；`configs/` 中的小文件只负责选择方案，旧命令仍可使用。项目相对路径以仓库根目录为准。
+Git 源码版本锁、依赖锁和数据划分清单保留为独立文件：它们由各自的工具或数据校验流程使用。凭据仍放在不提交的 `.env`，不放入共享 YAML。
 
-## 分工协作
+也可以只使用根配置并指定方案，例如查看 SearchQA 正式设置：
 
-**A 的工作清单：把原方法与公共运行系统做可靠。**
+```powershell
+.\.venv\Scripts\python.exe -m repro show-config --config config.yaml --preset course --preset searchqa.course
+```
 
-- [ ] 阅读原方法代码，讲清技能初始化、执行、变异／交叉、验证选择和最终测试的完整流程。
-- [ ] 配置运行环境，固定仓库版本、模型、依赖、解码参数和执行限制。
-- [ ] 与 C 一起接入 SearchQA 和课程提供的 HotpotQA，核对输入、答案与划分格式。
-- [ ] 跑通一个小规模完整实验，测量调用次数、token、耗时和本地 GPU 使用。
-- [ ] 建立统一运行入口，使 B 的改进选择器和原选择器可以通过配置切换。
-- [ ] 运行两个数据集的**无技能、初始技能、原始 GraphSkillEvo**条件，保存完整预测与轨迹。
-- [ ] 导出各轮候选技能、父子关系、验证成绩、保留决定和最终技能，制作进化流程图。
-- [ ] 维护公共日志、缓存和资源计量；检查失败与重试也被记录。
-- [ ] 编写环境与运行说明，准备演示，并提供报告中的复现设置、系统实现和工程限制初稿。
+组员可以修改根 `config.yaml` 中的本机路径，或复制 [组员配置模板](configs/team.local.example.yaml) 并修改其中的模型、数据和输出路径，以进行 SearchQA 试跑：
 
-**A 的验收标准：**另外两人能按照说明运行一个小实验；任意基线数字都能追溯到配置、技能文件和逐题输出。
+```powershell
+Copy-Item configs/team.local.example.yaml configs/team.local.yaml
+.\.venv\Scripts\python.exe -m repro show-config --config configs/team.local.yaml
+.\.venv\Scripts\python.exe -m repro doctor --config configs/team.local.yaml
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/serve_model.ps1 -Config configs/team.local.yaml
+```
 
----
+本机 `configs/team.local.yaml` 不会提交。另一个终端可使用相同配置运行 `python -m repro run --config configs/team.local.yaml --condition original`；数据须先按下方步骤准备。也可将 [.env.example](.env.example) 复制为 `.env` 并设置 `REPRO_MODEL_PATH`；非空环境变量和 `.env` 中的模型覆盖项优先于 YAML，请用 `show-config` 检查实际生效值。
+正式 course 配置不再强制校验 v1 的模型路径或安装包清单；每次运行仍记录实际配置、模型文件指纹、依赖和 GPU 采样，便于比较不同机器的结果。不同显卡需要满足所选模型、BF16 和上下文长度的运行要求。
 
-**B 的工作清单：实现创新，并证明改动确实发挥了作用。**
+## 现在可以运行
 
-- [ ] 阅读 GraphSkillEvo 与相关工作，核查原代码实际采用的失败选择方式，避免预先假定它是随机选择。
-- [ ] 根据 C 的开发失败分析，提出一个明确假设，并写出可能推翻假设的结果。
-- [ ] 确定一个主改动：建议沿用附件的**失败类型覆盖与近重复抑制**选择策略。
-- [ ] 实现选择器，明确训练失败池来源、选择数量、重复处理、持续失败和更新后刷新规则。
-- [ ] 保持优化器输入字段、提示词及其他进化机制一致，避免同时改变多个因素。
-- [ ] 实现一项聚焦消融，例如关闭近重复抑制；保存选择记录，确认选择器被实际调用。
-- [ ] **独立运行改进方法及消融实验**，两个数据集均覆盖，使用与原方法匹配的模型调用和生成 token 预算。
-- [ ] 检查选中的失败案例如何影响后续候选技能，记录有效、无效和产生退化的修改。
-- [ ] 编写方法对比、伪代码、复杂度、假设与局限，提供相关工作和方法章节初稿。
-- [ ] 主实验完成且预算允许时，牵头执行一次 SearchQA → HotpotQA 迁移扩展。
+在本项目根目录执行；使用显式 Python 路径，无需激活环境：
 
-**B 的验收标准：**能够回答“改了什么、为什么这样改、哪些因素没变、收益来自哪里、增加了多少成本”。创新效果允许为负，结论必须与证据一致。
+```powershell
+.\.venv\Scripts\python.exe scripts/run_example.py
+```
 
----
+该入口要求服务端口空闲，加载本地权重，用初始技能执行固定训练集第一题并自动释放临时服务。
+本次样例答案 `Bluebeard` 与标准答案一致，请求约 3.94 秒，输入 771 / 输出 105 token；没有访问测试样例。
+记录位于 `outputs/qwen35-example/20261030T013343516812Z-8e44c3/`，包含原始输出、配置、权重与 tokenizer SHA-256、调用和显存采样。
+这是单题工程验证，不能用来推断完整数据集成绩、长上下文或进化算子的速度。
 
-**C 的工作清单：从第一天开始建立评测与分析闭环。**
+```powershell
+.\.venv\Scripts\python.exe -m repro doctor --config configs/searchqa.pilot.yaml
+.\.venv\Scripts\python.exe -m repro validate-data --config configs/searchqa.course.yaml
+.\.venv\Scripts\python.exe -m repro validate-data --config configs/hotpotqa.course.yaml
+.\.venv\Scripts\python.exe -m repro smoke --dataset searchqa
+.\.venv\Scripts\python.exe -m repro smoke --dataset hotpotqa
+```
 
-- [ ] 固定两个数据集的训练、开发和测试 ID，保留课程提供的划分边界。
-- [ ] 实现并核验答案提取、归一化、EM、F1 和延迟统计，检查空答案、格式差异和运行失败等情况。
-- [ ] 编写结果读取与汇总脚本，统一关联样例 ID、条件、技能版本、配置和原始输出。
-- [ ] 收到原方法输出后，建立**基线选中技能的完整开发失败清单**，覆盖全部 EM=0 样例。
-- [ ] 制定失败分类，给出证据与不确定标签，邀请 A 或 B 复核部分案例，为 B 提供改进依据。
-- [ ] 在方法冻结后分析测试结果，统计“改对、改错、始终正确、始终错误”，测试失败不再反馈用于设计方法。
-- [ ] 生成双数据集主表、消融表、质量与成本图、失败分布和代表性案例。
-- [ ] 核对 A、B 的调用、token、GPU 时间和重试记录，检查比较是否公平。
-- [ ] 整合最多六页的报告、Poster 和案例材料，检查图表数字与原始记录一致。
-- [ ] 准备实验、结果、失败分析和结论章节初稿，并能现场演示一项结果如何追溯。
+`doctor` 将基础设施、模型文件、服务就绪状态分别报告；未启动本地服务时 `experiment_ready` 为 False。
+`smoke` 使用明确标记 synthetic 的小数据与固定协议响应，走完整的官方初始化、进化、选择和保存路径；其 EM/F1、token 估算与延迟不能用于研究比较。
 
-**C 的验收标准：**任意结果都能重算，任意失败分类都能指出支持证据。C 拥有评测和分析代码，能独立解释这些实现。
+无权重的真实 GPU 架构检查：
 
-**三人之间需要固定四个协作接口。**
+```powershell
+.\.venv\Scripts\python.exe scripts/check_native_qwen.py
+```
 
-|接口|约定|
-|---|---|
-|**数据接口**|A、B 使用 C 核验过的同一份数据清单|
-|**方法接口**|B 的选择器接入 A 的公共运行框架，不另建一套不兼容系统|
-|**结果接口**|A、B 输出统一格式的预测、轨迹、技能版本及成本，C 自动读取|
-|**写作接口**|A 写系统与复现，B 写方法与相关工作，C 写实验分析并整合，全员审阅|
+该检查仅在内存构造 218,664 参数随机小模型，覆盖 gated delta、attention 和 cache；不下载或保存权重，也不代表真实 9B 模型的速度、显存或效果。
 
-C 提供分类规范和诊断反馈；每轮选择与失败池刷新由 B 的程序完成，避免把 C 变成逐轮人工标注的瓶颈。
+## 真实数据与固定划分
 
-**按前面确定的时间表，个人交付节点应这样卡住：**
+| 配置 | 位置 | train / val / test |
+|---|---|---|
+| 两个 `*.course.yaml` | `data/processed/searchqa`、`data/processed/hotpotqa` | 各 100 / 30 / 50 |
+| 两个 `*.pilot.yaml` | `data/pilot/searchqa`、`data/pilot/hotpotqa` | 各 10 / 5 / 0 |
+| 两个 `offline.*.yaml` | `tests/fixtures/` | synthetic，各 6 / 3 / 0 |
 
-|截止日期|A 必须交出|B 必须交出|C 必须交出|
-|---|---|---|---|
-|**11/1**|完整小实验、公共运行接口|改动位置与选择器接口设计|数据清单、评分规范、汇总脚本雏形|
-|**11/8**|原方法开发结果与基础基线|可接入的改进原型|完整开发失败清单与问题诊断|
-|**11/13**|稳定运行框架与预算配置|冻结的改进及消融实现|公平性检查与冻结实验矩阵|
-|**11/20**|原始条件正式结果|改进和消融正式结果|主结果、成本与测试失败分析|
-|**11/29**|可复现代码、README、演示|方法说明、伪代码、答辩材料|完整报告、Poster、图表与案例|
+SearchQA 严格使用 GraphSkillEvo 官方 ID 清单。
+HotpotQA 使用你给出的 [hotpotqa/hotpot](https://github.com/hotpotqa/hotpot) 对应的官方 Hugging Face 数据镜像，配置为 distractor；官方 train 中抽取互不重叠的训练与验证子集，官方 dev 中抽取本地留出测试。
+**这是自行固定的公开数据子集，清单明确记录 `course_split_verified=false`，不能声称与尚未提供的课程特定划分一致。**
+原始 Parquet 已缓存到 `data/raw`，约 684 MB；来源 revision、原文件 SHA-256、样本 ID 和标准化文件 SHA-256 都已记录。
+每个数据目录中的 `split_manifest.json` 是该目录的清单。试跑数据只从既定训练/验证 ID 中派生，不包含测试样本。
 
-**三人最后都要完成交叉检查和模拟面试：** A 检查新选择器，B 检查评分脚本，C 检查运行与成本记录；每个人都能解释从技能初始化到最终测试的完整流程。
+需要重建数据时：
+
+```powershell
+.\.venv\Scripts\python.exe scripts/prepare_searchqa.py
+.\.venv\Scripts\python.exe scripts/prepare_hotpotqa.py
+.\.venv\Scripts\python.exe scripts/make_pilot_data.py
+```
+
+准备脚本从根配置的 `preparation` 和数据集 course 方案读取缓存目录、固定 revision、数量与输出路径，默认拒绝覆盖已固定的数据；命令行参数可以显式覆盖。网络异常会重试，缓存可断点续传；不会因为一次下载失败重新抽 ID。
+数据格式和完整准备方式见 [data/README.md](data/README.md)。
+`data/processed/` 不随仓库提交；正式配置将重建后的数据与 `manifests/data-v1/` 中的历史数据清单比较，核对 ID、分区、来源 revision 和已记录的哈希，同时允许上游源码的本机目录不同。
+
+## 共享配置与真实运行
+
+根 [config.yaml](config.yaml) 管理模型、16K 总上下文、4096 输出上限、温度 0.6、采样与重试种子规则。
+两个 `*.course.yaml` 引用对应的历史数据清单，正式规模为三轮、每轮两个新候选，预算为 600 次请求 / 200 万输出 token。
+正式运行前用 `repro validate-data --config configs/searchqa.course.yaml` 和 HotpotQA 配置分别核验数据；v1 的环境和模型路径不再作为运行门槛。
+例如 `configs/searchqa.pilot.yaml` 仅继承根配置并覆盖数据集路径。
+优先级为内置默认值 → `_base_` → 实验 YAML → 环境变量 → `--set`。
+`.env` 可以为试跑或正式运行提供本机模型路径；完整优先级见 [docs/configuration.md](docs/configuration.md)。
+
+只检查实际配置，不运行模型：
+
+```powershell
+.\.venv\Scripts\python.exe -m repro show-config --config configs/searchqa.pilot.yaml
+```
+
+启动当前 Qwen3.5-9B 模型：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/serve_model.ps1 -Config config.yaml
+```
+
+服务只读本地模型、监听本机，BF16、单卡串行，输入加输出总窗口为 16384 token，显式关闭 thinking。
+启动器读取共享配置；执行和技能优化共用一份模型，每次请求有独立生成上限。
+所有基线、改进和消融固定权重、tokenizer、推理库版本及解码设置；每次真实运行保存模型文件 SHA-256。
+当前文件的上游下载 revision 未独立核验，在正式报告中应补记来源 revision 或明确披露这一点。
+
+另一个终端运行：
+
+```powershell
+.\.venv\Scripts\python.exe -m repro doctor --config configs/searchqa.pilot.yaml --endpoint
+.\.venv\Scripts\python.exe -m repro run --config configs/searchqa.pilot.yaml --condition no_skill
+.\.venv\Scripts\python.exe -m repro run --config configs/searchqa.pilot.yaml --condition initial_skill
+.\.venv\Scripts\python.exe -m repro run --config configs/searchqa.pilot.yaml --condition original
+```
+
+### 模型文件与备用后端
+
+当前完整模型在 `E:\Qwen3.5-9B`。仓库内另一个 `models/Qwen3.5-9B` 目录仅含早期准备的非权重资源，不能作为当前完整模型使用。
+这两个目录独立保留；推理只从共享配置指定的完整目录读取，不混用 tokenizer 或配置。
+早期非权重资源仍可离线重验：
+
+```powershell
+.\.venv\Scripts\python.exe scripts/prepare_model_assets.py --verify-local
+```
+
+若需重看已有 Qwen3.8 GGUF 的工程验证，可使用独立配置启动备用后端：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/serve_gguf.ps1 -Config configs/local.gguf.yaml
+```
+
+正式 Qwen3.5-9B 对照统一使用当前 Transformers 配置。
+
+成员 A 的两数据集正式验证集对照可统一启动：
+
+```powershell
+.\.venv\Scripts\python.exe -u scripts/run_formal.py
+```
+
+入口一次加载配置快照，依次运行每个数据集的无技能、初始技能、三轮原始进化和选中技能的重复验证；八个子运行共用一个临时模型服务，结果写入独立 `outputs/formal/<批次ID>/`。该批次只做验证集对照，不向模型发送留出测试题。选中技能的重复验证仍使用同一种子，不能算作独立种子复验。
+
+HotpotQA 替换配置名即可。先根据试跑消耗调整预算，再使用 `*.course.yaml`。
+独立评估已保存技能：
+
+```powershell
+.\.venv\Scripts\python.exe -m repro evaluate --config configs/searchqa.course.yaml --skill "outputs/运行ID/upstream/best_skill.md" --split val
+```
+
+正式测试默认关闭。方法、提示词、模型与解码设置冻结后，使用 `--split test --set experiment.allow_test=true` 执行留出评估；进化循环始终无法读取测试分区。
+`improved` / `ablation` 选择器预留给 B，未注册实现时明确拒绝，不能回退为原方法。
+
+## 产物与方法适配
+
+每次实验创建独立 `outputs/<run_id>/`：配置、源码版本与文件哈希、环境版本、数据清单、模型服务信息、逐题预测、原始提示词和响应、调用与 token、GPU 采样、技能文件和 SHA、进化历史、Mermaid 内部流程图与候选谱系图。
+失败和重试也计量；后端缺失 usage 时明确标记，不以零 token 冒充完整测量。
+
+```powershell
+.\.venv\Scripts\python.exe -m repro summarize --run "outputs/运行ID"
+.\.venv\Scripts\python.exe -m repro render-skill --skill "outputs/运行ID/upstream/best_skill.md" --output "outputs/selected-skill.mmd"
+```
+
+官方源码保持原样。项目适配层将每轮新候选数与保留种群大小分开，按配置跨轮轮转变异/交叉，并约束无效图生成的重试；原方法与 B 的改进共享这些设置。
+SearchQA 保留原提示词及 6000 字符上下文截断，HotpotQA 保留所有提供的段落；具体差异保存于 `integration_adaptations.json`。
+HotpotQA 使用项目中性初始技能 `skills/hotpotqa/initial.md`，不是官方发布的进化结果。
+
+## 结构与重建
+
+`src/repro/` 按职责拆分为 `datasets`、`inference`、`serving`、`integration`、`experiments`、`selectors`、`evaluation`、`artifacts` 和 `visualization`。
+`cli.py` 只做命令解析和分发。边界及 A/B/C 所有权见 [docs/architecture.md](docs/architecture.md)。
+
+新 Windows 环境按上方“安装”小节使用 `requirements.txt` 准备依赖。
+若使用可选的 GGUF 后端，再安装固定版本的 llama.cpp 运行库：
+
+```powershell
+.\.venv\Scripts\python.exe scripts/install_llama_cpp.py
+```
+
+源码固定于 `third_party/*.lock.json`，Windows 依赖固定于 `requirements/lock.windows.txt`。
+环境与本地服务细节见 [docs/environment.md](docs/environment.md)。测试命令：
+
+```powershell
+.\.venv\Scripts\python.exe -m pip check
+.\.venv\Scripts\python.exe -m ruff check src/repro tests scripts
+.\.venv\Scripts\python.exe -m pytest -q
+```

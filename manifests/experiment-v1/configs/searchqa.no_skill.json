@@ -1,0 +1,54 @@
+{
+  "model": {
+    "backend": "transformers",
+    "name": "Qwen/Qwen3.5-9B",
+    "base_url": "http://127.0.0.1:8000/v1",
+    "api_key_env": "REPRO_API_KEY",
+    "local_path": "E:/Qwen3.5-9B",
+    "max_completion_tokens": 4096,
+    "temperature": 0.6,
+    "top_p": 1.0,
+    "top_k": 50,
+    "seed_policy": "optimizer_retry_v1",
+    "timeout_s": 360,
+    "max_retries": 1,
+    "enable_thinking": false,
+    "max_context_tokens": 16384
+  },
+  "data": {
+    "dataset": "searchqa",
+    "split_dir": "data/processed/searchqa",
+    "manifest": null
+  },
+  "experiment": {
+    "condition": "no_skill",
+    "seed": 42,
+    "output_root": "outputs",
+    "allow_test": false,
+    "profile": "course",
+    "initial_skill": null,
+    "freeze_manifest": "manifests/experiment-v1/manifest.json"
+  },
+  "evolution": {
+    "generations": 3,
+    "population_size": 2,
+    "new_candidates_per_round": 2,
+    "train_eval_num": 15,
+    "reflection_failure_k": 3,
+    "selector": "original",
+    "operator_schedule": [
+      "mutation_other",
+      "mutation_graph",
+      "crossover_other",
+      "crossover_graph"
+    ],
+    "operator_max_completion_tokens": 4096,
+    "graph_retry_attempts": 2,
+    "max_operator_attempts": 6
+  },
+  "budget": {
+    "max_calls": 600,
+    "max_completion_tokens": 2000000,
+    "gpu_hours_reference": 40
+  }
+}
