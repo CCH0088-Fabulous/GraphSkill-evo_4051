@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "dataset": "searchqa",
+  "seed": 42,
+  "selection": "sha256(seed\\0dataset\\0split\\0id), ascending",
+  "course_profile": true,
+  "source": {
+    "kind": "synthetic_infrastructure_fixture"
+  },
+  "synthetic": true,
+  "splits": {
+    "train": {
+      "count": 6,
+      "ids": [
+        "synthetic-searchqa-train-004",
+        "synthetic-searchqa-train-002",
+        "synthetic-searchqa-train-006",
+        "synthetic-searchqa-train-001",
+        "synthetic-searchqa-train-005",
+        "synthetic-searchqa-train-003"
+      ],
+      "file": "train.jsonl",
+      "sha256": "92b30f0530a13d4c4947f95c7aa87bc7113ceb7182557c7b5cb6a933353332d6"
+    },
+    "val": {
+      "count": 3,
+      "ids": [
+        "synthetic-searchqa-val-003",
+        "synthetic-searchqa-val-001",
+        "synthetic-searchqa-val-002"
+      ],
+      "file": "val.jsonl",
+      "sha256": "afac58a0938036435ffe025d3d4384de627da1648490d79d3d1e274225b5438a"
+    },
+    "test": {
+      "count": 0,
+      "ids": [],
+      "file": "test.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  }
+}

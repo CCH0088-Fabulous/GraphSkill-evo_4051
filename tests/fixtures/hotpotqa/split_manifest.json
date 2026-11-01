@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "dataset": "hotpotqa",
+  "seed": 42,
+  "selection": "sha256(seed\\0dataset\\0split\\0id), ascending",
+  "course_profile": true,
+  "source": {
+    "kind": "synthetic_infrastructure_fixture"
+  },
+  "synthetic": true,
+  "splits": {
+    "train": {
+      "count": 6,
+      "ids": [
+        "synthetic-hotpotqa-train-005",
+        "synthetic-hotpotqa-train-004",
+        "synthetic-hotpotqa-train-006",
+        "synthetic-hotpotqa-train-002",
+        "synthetic-hotpotqa-train-001",
+        "synthetic-hotpotqa-train-003"
+      ],
+      "file": "train.jsonl",
+      "sha256": "f2701d41b883d17c08eb966ba8cf75ef9f018548632273a36db91d9d576516a6"
+    },
+    "val": {
+      "count": 3,
+      "ids": [
+        "synthetic-hotpotqa-val-001",
+        "synthetic-hotpotqa-val-003",
+        "synthetic-hotpotqa-val-002"
+      ],
+      "file": "val.jsonl",
+      "sha256": "26afe1613bb99157c7eb0cbea64a50bf453b11e2817dd679b32e1a192f91c2be"
+    },
+    "test": {
+      "count": 0,
+      "ids": [],
+      "file": "test.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  }
+}

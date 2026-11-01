@@ -1,0 +1,7 @@
+{
+  "repository": "https://github.com/ruisun7/GraphSkillEvo.git",
+  "commit": "722a8a913b05dc9d1b4078f0bec604cde4dc7529",
+  "path": "third_party/GraphSkillEvo",
+  "checked_out_at": "2026-10-29",
+  "policy": "Keep upstream source unchanged; all local adaptations live in src/repro/integration."
+}

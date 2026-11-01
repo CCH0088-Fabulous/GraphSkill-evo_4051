@@ -1,0 +1,141 @@
+# Shared settings, data preparation, and experiment presets.
+# Small files under configs/ select these presets for existing commands.
+model:
+  backend: transformers
+  name: Qwen/Qwen3.5-9B
+  base_url: http://127.0.0.1:8000/v1
+  api_key_env: REPRO_API_KEY
+  local_path: E:/Qwen3.5-9B
+  max_context_tokens: 16384
+  max_completion_tokens: 4096
+  temperature: 0.6
+  top_p: 1.0
+  top_k: 50
+  seed_policy: optimizer_retry_v1
+  timeout_s: 360
+  max_retries: 1
+  enable_thinking: false
+
+data:
+  dataset: searchqa
+  split_dir: data/processed/searchqa
+  manifest: null
+
+experiment:
+  condition: original
+  profile: course
+  seed: 42
+  output_root: outputs
+  allow_test: false
+  initial_skill: null
+  freeze_manifest: null  # Optional legacy verification; not enabled by the course presets.
+
+evolution:
+  generations: 1
+  population_size: 2
+  new_candidates_per_round: 2
+  train_eval_num: 5
+  reflection_failure_k: 2
+  selector: original
+  operator_schedule: [mutation_other, mutation_graph, crossover_other, crossover_graph]
+  operator_max_completion_tokens: 4096
+  graph_retry_attempts: 2
+  max_operator_attempts: 6
+
+budget:
+  max_calls: 200
+  max_completion_tokens: 200000
+  gpu_hours_reference: 40
+
+# Dataset preparation never downloads model weights.
+preparation:
+  raw_cache_dir: data/raw
+  searchqa_manifest_dir: third_party/GraphSkillEvo/data/searchqa_id_split
+  searchqa_revision: c1a979068ba118d85467179b704031d113d689cc
+  hotpotqa_revision: 1908d6afbbead072334abe2965f91bd2709910ab
+  searchqa_download_mode: parquet
+  hotpotqa_download_mode: parquet
+  hotpotqa_source: official-public
+  searchqa_raw_path: null
+  hotpotqa_raw_train: null
+  hotpotqa_raw_val: null
+  hotpotqa_raw_test: null
+  seed: 42
+  train_count: 100
+  val_count: 30
+  test_count: 50
+  pilot_seed: 42
+  pilot_train_count: 10
+  pilot_val_count: 5  # Pilot data never includes the held-out test partition.
+
+# Presets are composed in the order listed by each file in configs/.
+presets:
+  course:
+    evolution:
+      generations: 3
+      train_eval_num: 15
+      reflection_failure_k: 3
+    budget:
+      max_calls: 600
+      max_completion_tokens: 2000000
+  acceptance:
+    experiment:
+      allow_test: false
+      freeze_manifest: null
+    evolution:
+      generations: 2
+      train_eval_num: 10
+      reflection_failure_k: 3
+    budget:
+      max_calls: 300
+      max_completion_tokens: 1200000
+  offline:
+    experiment:
+      profile: synthetic
+      output_root: outputs/offline
+    evolution:
+      train_eval_num: 3
+      reflection_failure_k: 1
+    budget:
+      max_calls: 100
+      max_completion_tokens: 100000
+  searchqa.course:
+    data:
+      dataset: searchqa
+      split_dir: data/processed/searchqa
+      manifest: manifests/data-v1/searchqa.json
+  hotpotqa.course:
+    data:
+      dataset: hotpotqa
+      split_dir: data/processed/hotpotqa
+      manifest: manifests/data-v1/hotpotqa.json
+  searchqa.pilot:
+    data:
+      dataset: searchqa
+      split_dir: data/pilot/searchqa
+      manifest: null
+  hotpotqa.pilot:
+    data:
+      dataset: hotpotqa
+      split_dir: data/pilot/hotpotqa
+      manifest: null
+  searchqa.offline:
+    data:
+      dataset: searchqa
+      split_dir: tests/fixtures/searchqa
+      manifest: null
+  hotpotqa.offline:
+    data:
+      dataset: hotpotqa
+      split_dir: tests/fixtures/hotpotqa
+      manifest: null
+  local.gguf:
+    model:
+      backend: llama_cpp
+      name: Qwen3.8-27B-Q4_K_M
+      local_path: E:/Qwen3.8-27B-GGUF/Qwen3.8-27B-Q4_K_M.gguf
+      max_context_tokens: 8192
+      max_completion_tokens: 2048
+      temperature: 0.0
+      timeout_s: 180
+      seed_policy: fixed

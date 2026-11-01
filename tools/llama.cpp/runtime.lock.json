@@ -1,0 +1,13 @@
+{
+  "repository": "https://github.com/ggml-org/llama.cpp",
+  "release": "b10901",
+  "commit": "28ff0958291ce3465fabd7bd679d4b0edd742bd9",
+  "cuda": "13.3",
+  "platform": "win-x64",
+  "executable": "tools/llama.cpp/b10901-cuda13.3/llama-server.exe",
+  "executable_sha256": "cff88bca0c9a023e8deb0c1a68b87604a530f1edfabd3c4067f62b8b523bdfcc",
+  "archives": {
+    "llama-b10901-bin-win-cuda-13.3-x64.zip": "dd3035688b6f3eaaabd41dddd5d66389fed3b6207107170dbefd884b80ad0d79",
+    "cudart-llama-bin-win-cuda-13.3-x64.zip": "1462a050eb4c684921ba51dcc4cc488a036674c3e73e9945ee705b854808d03e"
+  }
+}

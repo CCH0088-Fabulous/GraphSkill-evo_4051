@@ -1,0 +1,3 @@
+{"answers": ["red"], "context": "[SYNTHETIC] The sample flag is red.", "dataset": "searchqa", "id": "synthetic-searchqa-val-003", "metadata": {"synthetic": true}, "question": "What is the color of the sample flag?", "split": "val"}
+{"answers": ["Rome"], "context": "[SYNTHETIC] Italy has its capital in Rome.", "dataset": "searchqa", "id": "synthetic-searchqa-val-001", "metadata": {"synthetic": true}, "question": "What is the capital of Italy?", "split": "val"}
+{"answers": ["seven", "7"], "context": "[SYNTHETIC] The sample bag contains seven stones.", "dataset": "searchqa", "id": "synthetic-searchqa-val-002", "metadata": {"synthetic": true}, "question": "How many stones are in the sample bag?", "split": "val"}

@@ -1,0 +1,59 @@
+# Local Python environments and credentials
+.venv/
+.venv-linux/
+venv/
+.env
+.env.*
+!.env.example
+configs/team.local.yaml
+
+# Python bytecode, packaging and test caches
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.hypothesis/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+
+# Local editor and operating-system files
+.vscode/settings.json
+.idea/
+*.code-workspace
+.DS_Store
+Thumbs.db
+*.swp
+
+# Download caches and prepared datasets
+.cache/
+data/cache/
+data/hf_cache/
+data/raw/
+data/processed/
+data/pilot/
+
+# Experiment outputs and local logs
+outputs/
+*.log
+
+# Local model weights; keep the setup instructions
+models/*
+!models/README.md
+*.safetensors
+*.gguf
+*.pt
+*.pth
+*.ckpt
+pytorch_model*.bin
+
+# Restorable third-party checkouts and optional runtime binaries
+third_party/GraphSkillEvo/
+third_party/HotpotQA/
+tools/llama.cpp/*
+!tools/llama.cpp/runtime.lock.json
