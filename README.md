@@ -1,11 +1,12 @@
 ﻿# GraphSkillEvo 复现基础设施
 
 面向成员 A 的运行工程：原生 Windows + 32GB 显存，当前使用 Transformers 加载用户提供的 `E:\Qwen3.5-9B`，BF16 推理。
-已准备官方源码、真实数据、独立环境、项目共享配置、统一入口、评分、日志与成本计量。**双数据集两轮资格验收已通过；v1 保存为历史记录，不再强制校验其模型路径和环境，正式研究对照尚未运行。**
+已准备官方源码、真实数据、独立环境、项目共享配置、统一入口、评分、日志与成本计量。**成员 A 的两数据集正式验证集对照已完成：八个子运行全部成功，留出测试尚未执行。v1 保存为历史记录，不再强制校验其模型路径和环境。**
 原有团队分工和日程完整保存在 [docs/team-plan.md](docs/team-plan.md)。
 正式复现的步骤、命令和成员 A 的交付物见 [docs/reproduction-plan.md](docs/reproduction-plan.md)。
 本次 pilot 的设置、输出、截断及重试问题见 [docs/pilot-results.md](docs/pilot-results.md)。
 历史 v1 参数、截断/重试规则和验收证据见 [docs/frozen-settings-v1.md](docs/frozen-settings-v1.md)。
+本次正式验证集对照的范围和结果记录见 [docs/formal-results.md](docs/formal-results.md)。
 
 ## 当前环境
 
@@ -172,6 +173,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/serve_gguf.ps1 -Conf
 ```
 
 正式 Qwen3.5-9B 对照统一使用当前 Transformers 配置。
+
+成员 A 的两数据集正式验证集对照可统一启动：
+
+```powershell
+.\.venv\Scripts\python.exe -u scripts/run_formal.py
+```
+
+入口一次加载配置快照，依次运行每个数据集的无技能、初始技能、三轮原始进化和选中技能的重复验证；八个子运行共用一个临时模型服务，结果写入独立 `outputs/formal/<批次ID>/`。该批次只做验证集对照，不向模型发送留出测试题。选中技能的重复验证仍使用同一种子，不能算作独立种子复验。
 
 HotpotQA 替换配置名即可。先根据试跑消耗调整预算，再使用 `*.course.yaml`。
 独立评估已保存技能：
