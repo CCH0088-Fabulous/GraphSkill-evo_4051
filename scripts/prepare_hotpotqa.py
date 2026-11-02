@@ -8,12 +8,18 @@ from pathlib import Path
 
 from repro.config import load_config, resolve_path
 from repro.datasets.hotpotqa import prepare_hotpotqa, prepare_public_hotpotqa
+from repro.datasets.hotpotqa_sampling import prepare_stratified_hotpotqa
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default="config.yaml", help="Shared preparation settings")
     parser.add_argument("--source", choices=("official-public", "course"))
+    parser.add_argument("--stratified", action="store_true", help="Prepare provisional professor protocol")
+    parser.add_argument("--train-per-level", type=int)
+    parser.add_argument("--val-per-level", type=int)
+    parser.add_argument("--protocol-file", type=Path)
+    parser.add_argument("--ids-output", type=Path)
     parser.add_argument("--raw-train", type=Path)
     parser.add_argument(
         "--raw-val", type=Path, help="Course validation file, or official dev file in public mode"
@@ -30,7 +36,9 @@ def main() -> None:
     parser.add_argument("--no-course-limits", action="store_true")
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
-    config = load_config(args.config, presets=["course", "hotpotqa.course"])
+    config = load_config(
+        args.config, presets=["course", "hotpotqa.provisional" if args.stratified else "hotpotqa.course"]
+    )
     settings = config["preparation"]
     output = args.output if args.output is not None else resolve_path(config["data"]["split_dir"])
     cache_dir = args.cache_dir or resolve_path(settings["raw_cache_dir"])
@@ -53,7 +61,40 @@ def main() -> None:
         "course_limits": not args.no_course_limits,
         "overwrite": args.overwrite,
     }
-    if source == "course":
+    if args.stratified:
+        if (
+            args.overwrite or any(raw_paths.values())
+            or args.source == "course" or args.download_mode == "viewer"
+        ):
+            parser.error("Stratified mode uses pinned local Parquet and never overwrites frozen data")
+        if args.train is not None or args.val is not None:
+            parser.error("Stratified mode uses --train-per-level and --val-per-level")
+        manifest = prepare_stratified_hotpotqa(
+            output,
+            cache_dir=cache_dir,
+            hf_revision=revision,
+            protocol_path=args.protocol_file or resolve_path(settings["hotpotqa_protocol_file"]),
+            train_per_level=(
+                args.train_per_level
+                if args.train_per_level is not None else settings["hotpotqa_train_per_level"]
+            ),
+            val_per_level=(
+                args.val_per_level if args.val_per_level is not None else settings["hotpotqa_val_per_level"]
+            ),
+            test_count=args.test if args.test is not None else settings["hotpotqa_test_count"],
+            seed=options["seed"],
+            ids_output=args.ids_output or resolve_path(settings["hotpotqa_ids_output"]),
+        )
+        archive = resolve_path(config["data"]["manifest"])
+        content = (output / "split_manifest.json").read_bytes()
+        if archive.exists():
+            if archive.read_bytes() != content:
+                raise FileExistsError(f"Archived data manifest differs: {archive}")
+        else:
+            archive.parent.mkdir(parents=True, exist_ok=True)
+            with archive.open("xb") as stream:
+                stream.write(content)
+    elif source == "course":
         paths = {split: path for split, path in raw_paths.items() if path is not None}
         manifest = prepare_hotpotqa(paths, output, sizes, **options)
     else:

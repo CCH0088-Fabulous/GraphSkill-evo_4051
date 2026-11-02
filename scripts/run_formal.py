@@ -1,17 +1,42 @@
-"""Parse and dispatch member A's formal validation comparisons."""
+"""Dispatch member A's development comparisons or frozen held-out evaluation."""
 
 import argparse
 import json
 
 from repro.experiments.formal import run_formal
+from repro.experiments.heldout import run_heldout
+from repro.experiments.provisional import run_provisional
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", default="config.yaml")
+    parser.add_argument("--config")
+    parser.add_argument(
+        "--test-from-batch", help="Evaluate all frozen A conditions from a completed development batch"
+    )
     parser.add_argument("--set", action="append", default=[], metavar="SECTION.KEY=VALUE")
-    args = parser.parse_args()
-    report = run_formal(args.config, args.set)
+    parser.add_argument(
+        "--provisional-hotpotqa", action="store_true",
+        help="Use the provisional stratified 300/150/1000 HotpotQA protocol; never infer on test",
+    )
+    parser.add_argument(
+        "--seeds", nargs="+", type=int, help="Distinct experiment seeds for provisional HotpotQA",
+    )
+    args = parser.parse_args(argv)
+    if args.test_from_batch:
+        if args.config or args.set or args.seeds is not None or args.provisional_hotpotqa:
+            parser.error("--test-from-batch uses the frozen source plan; config/set/seeds are not accepted")
+        report = run_heldout(args.test_from_batch)
+        summary = json.loads((report / "summary.json").read_text(encoding="utf-8"))
+        return 0 if summary["status"] == "completed" else 1
+    if args.seeds is not None and not args.provisional_hotpotqa:
+        parser.error("--seeds requires --provisional-hotpotqa; use --set experiment.seed=N for course")
+    if args.seeds is not None and any(item.split("=", 1)[0] == "experiment.seed" for item in args.set):
+        parser.error("Specify experiment seeds with either --seeds or --set experiment.seed, not both")
+    report = (
+        run_provisional(args.config or "config.yaml", args.set, seeds=args.seeds)
+        if args.provisional_hotpotqa else run_formal(args.config or "config.yaml", args.set)
+    )
     summary = json.loads((report / "summary.json").read_text(encoding="utf-8"))
     return 0 if summary["status"] == "completed" else 1
 

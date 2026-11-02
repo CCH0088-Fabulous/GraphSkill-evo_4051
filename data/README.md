@@ -4,8 +4,8 @@ The official repositories contain code and manifests rather than bundled model
 weights. Preparation below downloads only dataset records, never model weights.
 
 ```powershell
-.venv/Scripts/python.exe scripts/prepare_searchqa.py
-.venv/Scripts/python.exe scripts/prepare_hotpotqa.py
+python scripts/prepare_searchqa.py
+python scripts/prepare_hotpotqa.py
 ```
 
 Both commands read their dataset revision, cache location, seed, counts and course
@@ -54,3 +54,34 @@ Normalized records preserve original source fields under `metadata.source_record
 Only question and context belong in model task inputs; reference answers and
 supporting facts must not be included as task evidence. Evaluation code is in
 `src/repro/evaluation` and is the member C integration boundary.
+
+## Professor's stratified HotpotQA protocol
+
+The professor's root-level HotpotQA Markdown instruction permits constructing
+fixed splits from official distractor data. The user now specifies 300 training
+examples (100 per difficulty), 150 validation examples (50 per difficulty,
+excluding training IDs), and 1000 held-out examples from official dev, replacing
+the earlier provisional count of 200. The original instruction is retained
+unchanged; the manifest records the user-selected count. The overall size remains
+provisional relative to the original PDF limits. The user has explicitly resumed
+development experiments on v2; the old interrupted v1 batch stays unchanged.
+
+```powershell
+python scripts/prepare_hotpotqa.py --stratified
+python -m repro validate-data --config config.yaml --preset course --preset hotpotqa.provisional
+```
+
+This path verifies the already cached revision-pinned Parquet files and their
+download receipts, then samples by original difficulty and original ID with data
+seed 42. It does not download anything. The new normalized data lives under
+`data/processed/hotpotqa-stratified-v2/`. Reference manifest and submitted
+`train_ids`, `val_ids`, `test_ids` live under `manifests/hotpotqa-stratified-v2/`.
+Existing outputs are verified instead of overwritten. The v1 stratified split
+with 200 test questions remains unchanged, as do the original unstratified
+100/30/50 split and its results. V2 retains the exact train/validation data;
+its 1000-question test set contains all 200 previous test IDs.
+
+Experiment seeds 0, 42 and 127 share this one fixed split. Test records are reserved
+for evaluation after team method finalization; development experiments never send
+them to the model. Solver inputs retain every supplied context paragraph and omit
+reference answers and supporting-fact labels.

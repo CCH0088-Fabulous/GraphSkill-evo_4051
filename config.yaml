@@ -61,6 +61,12 @@ preparation:
   hotpotqa_raw_train: null
   hotpotqa_raw_val: null
   hotpotqa_raw_test: null
+  # User-selected stratified protocol; held-out test count is 1000.
+  hotpotqa_train_per_level: 100
+  hotpotqa_val_per_level: 50
+  hotpotqa_test_count: 1000
+  hotpotqa_protocol_file: AIAA_4051_Hotpot_QA_Data_in_Evolving_Graph-Structured_Skills_for_LLM_Agents_(1).md
+  hotpotqa_ids_output: manifests/hotpotqa-stratified-v2/ids.json
   seed: 42
   train_count: 100
   val_count: 30
@@ -99,6 +105,17 @@ presets:
       dataset: hotpotqa
       split_dir: data/processed/hotpotqa
       manifest: manifests/data-v1/hotpotqa.json
+  hotpotqa.provisional:
+    data:
+      dataset: hotpotqa
+      split_dir: data/processed/hotpotqa-stratified-v2
+      manifest: manifests/hotpotqa-stratified-v2/hotpotqa.json
+    experiment:
+      profile: custom
+    budget:
+      # Five times the old ceiling because validation grows from 30 to 150.
+      max_calls: 3000
+      max_completion_tokens: 10000000
   searchqa.pilot:
     data:
       dataset: searchqa
