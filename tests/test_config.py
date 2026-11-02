@@ -26,6 +26,29 @@ def test_course_candidate_budget_and_gpu_reference_are_separate():
         validate_config(cfg)
 
 
+def test_provisional_hotpot_protocol_has_separate_identity_and_budgets():
+    legacy = load_config("configs/hotpotqa.course.yaml")
+    current = load_config("config.yaml", presets=["course", "hotpotqa.provisional"])
+    assert legacy["experiment"]["profile"] == "course"
+    assert legacy["data"]["manifest"] == "manifests/data-v1/hotpotqa.json"
+    assert current["experiment"]["profile"] == "custom"
+    assert not current["experiment"]["allow_test"]
+    assert current["data"]["manifest"] == "manifests/hotpotqa-stratified-v2/hotpotqa.json"
+    assert current["preparation"]["hotpotqa_test_count"] == 1000
+    assert current["model"] == legacy["model"]
+    assert current["evolution"] == legacy["evolution"]
+    assert current["budget"]["max_calls"] == 5 * legacy["budget"]["max_calls"]
+    assert current["budget"]["max_completion_tokens"] == 5 * legacy["budget"]["max_completion_tokens"]
+
+
+@pytest.mark.parametrize("key,value", [("hotpotqa_train_per_level", 0), ("hotpotqa_test_count", True)])
+def test_stratified_preparation_counts_require_positive_integers(key, value):
+    config = deepcopy(DEFAULTS)
+    config["preparation"][key] = value
+    with pytest.raises(ValueError, match=key):
+        validate_config(config)
+
+
 def test_typo_override_rejected():
     with pytest.raises(ValueError, match="Unknown override"):
         load_config("configs/searchqa.pilot.yaml", ["model.misspelled=1"])

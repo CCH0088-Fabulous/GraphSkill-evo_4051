@@ -6,6 +6,8 @@
 
 两数据集的无技能、初始技能、三轮原始 GraphSkillEvo 和选中技能重复验证已完成，共八个子运行。结果和限制见 [formal-results.md](formal-results.md)。这些是种子 42 的验证集成绩；测试集未向模型执行。
 
+以上 HotpotQA 属于旧的未分层 100/30/50 划分。新方案为 **300/150/1000**，已经完成 seed 0、42、127 的12个子运行，原方法各三轮；结果见 [HotpotQA v2 汇总](hotpotqa-v2-results.md)。选定技能验证 EM/F1 均值为70.89/82.36，测试未评估，整体规模相对PDF的限额差异继续披露。新结果与旧划分及中断批次独立保存。
+
 ## 1. 准备环境与数据
 
 按 README 在已激活的 Python 环境中安装 `requirements.txt`。模型由使用者提供，根 `config.yaml` 管理路径、解码和实验方案。
@@ -17,7 +19,14 @@ python -m repro validate-data --config configs/searchqa.course.yaml
 python -m repro validate-data --config configs/hotpotqa.course.yaml
 ```
 
-正式数据为每套 100 train / 30 val / 50 test。SearchQA 使用上游固定 ID；HotpotQA 为公开 distractor 自选子集，`course_split_verified=false`，仍需由 C 确认课程一致性。不能根据成绩替换 ID。模型下载 revision 未独立核验，须保留文件指纹并披露来源限制。
+SearchQA 保持 100 train / 30 val / 50 test 和上游固定 ID。HotpotQA 新方案从官方 train 按难度各取 100 训练、50 验证，从官方 distractor dev 取 1000 测试；全部不重叠且固定数据 seed 42。用户已明确指定测试数量1000；原PDF仍有限额100/30/50，因此整体新规模继续标为暂定，不能按成绩换 ID。模型下载 revision 未独立核验，须保留文件指纹并披露来源限制。
+
+```powershell
+python scripts/prepare_hotpotqa.py --stratified
+python -m repro validate-data --config config.yaml --preset course --preset hotpotqa.provisional
+```
+
+三份原始 ID 和参考清单在 `manifests/hotpotqa-stratified-v2/`，标准化数据在独立的 v2 目录，准备入口重复执行时只验证已有内容。v1 的200测试题、训练/验证数据和已中断运行完整保留；v2 的训练/验证内容不变，测试扩大为包含旧200题的1000题。
 
 ## 2. 基本验证
 
@@ -52,9 +61,19 @@ python scripts/run_formal.py --set experiment.seed=127
 
 以上为待执行计划，不表示已启动或完成。每个新种子都包含无技能、初始技能、原方法进化及选定技能重复验证，不能只重跑进化而借用另一种子的基线。C 汇总逐种子结果、均值、样本标准差和配对差值。
 
+上述旧方案复用仅适用于未改变的数据。新 HotpotQA 开发集三种子已完成；以下命令用于重新建立独立批次，运行状态见根 `MEMORY.md`：
+
+```powershell
+python scripts/run_formal.py --provisional-hotpotqa --seeds 0 42 127
+```
+
+每种子、每条件请求/输出预算上限为 3000 / 1000 万，其余三轮、每轮两个候选、训练评估15题、最多三条失败反馈及模型规则不变。扩大上限是为了容纳150题验证集，实际用量单独报告；B 后续比较需使用同一范围预算。此入口始终禁止测试推理，原 PDF 小规模 `course` 的边界仍保留。
+
 ## 4. 向 B/C 交接
 
 已完成批次：`outputs/formal/20261101T135059023401Z-163af6/`。
+
+新 HotpotQA v2 批次为 `outputs/provisional-hotpotqa/20261102T050827834273Z-ae48d3/`，重新汇总在 `outputs/reports/hotpotqa-v2/20261102T105531089060Z-76f4bd/`。后者包含 `results.json`、逐种子 CSV、相对路径 `handoff.md`、校验清单和可重算脚本；交接时需同时复制原始批次和报告目录。
 
 - `handoff.md`：逐题预测、摘要和技能的相对链接，复制整批目录后仍可使用。
 - `audit-results.json`、`results.json`：指标、成本和边界检查。
@@ -66,6 +85,14 @@ C 基于选定技能的完整验证预测建立全部 EM=0 的失败清单、分
 ## 5. 方法定稿后评估测试集
 
 所有方法、模型、解码、预算和最终技能选择确定后，才显式开启独立测试。测试失败不再反馈给方法或提示词设计。
+
+用户现已明确授权评估 A 的冻结条件。HotpotQA v2 使用以下入口，自动冻结开发批次中已经选好的全部三个种子技能，并比较无技能、初始技能和原方法，共九组，每组1000题：
+
+```powershell
+python scripts/run_formal.py --test-from-batch outputs/provisional-hotpotqa/20261102T050827834273Z-ae48d3
+```
+
+测试模式不用 `--config`、`--set`、`--seeds` 覆盖；配置来自已完成开发批次，不能根据测试结果另选种子、技能或推理参数。输出为独立 `outputs/heldout-hotpotqa/` 批次，其中先保存冻结清单、技能与数据副本，再启动服务。B 的改进／消融仍由 B 完成，不能读取本测试的样例和失败来继续设计方法。
 
 先启动相同配置的模型服务，再执行：
 

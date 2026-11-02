@@ -72,10 +72,12 @@ GGUF 备用路线使用 `configs/local.gguf.yaml`，入口统一为 `scripts/ggu
 - `preparation`：两个数据集的固定 revision、下载方式、可选本地来源、缓存目录、数据数量和种子；pilot 始终不含测试样例。
 - `presets` 中的 `*.pilot`：各数据集 pilot 路径；默认使用一轮进化。
 - `course` 与 `*.course`：正式实验规模、预算、数据路径及基准清单；默认禁止测试。
+- `hotpotqa.provisional`：按用户指定的 300/150/1000 方案，使用独立 v2 路径及参考清单、`custom` profile 和 3000 次请求 / 1000 万输出 token 上限；三轮及模型规则与原方案一致。用户已授权恢复开发集实验，整体规模与 PDF 限额的关系仍待确认。
 - `offline` 与 `*.offline`：使用明确标记的合成数据；通过 `repro smoke` 运行，不产生研究结果。
 - `local.gguf`：历史备用后端的模型位置与解码设置。
 
 数据准备脚本读取 `preparation` 和对应 `*.course` 路径；`scripts/make_pilot_data.py` 读取 `preparation` 的 pilot 数量以及 `*.pilot` 路径。三者支持 `--config` 指向另一份包含相同方案的配置，准备脚本的显式参数优先于 YAML。
+`prepare_hotpotqa.py --stratified` 改用 `hotpotqa.provisional`，读取 `hotpotqa_train_per_level`、`hotpotqa_val_per_level`、`hotpotqa_test_count`、`hotpotqa_protocol_file` 和 `hotpotqa_ids_output`；只读本地固定 revision 缓存并验证下载收据。数据种子仍为 `preparation.seed`，不随实验种子变化。
 正式数据清单 `manifests/data-v1/` 保存已经固定的样本和来源校验值，不能仅通过修改 YAML 换一批数据。
 上游 Git 锁、Python 依赖锁、数据清单和 `.env` 凭据仍分别存放：这些文件供专门工具验证或只属于本机。
 

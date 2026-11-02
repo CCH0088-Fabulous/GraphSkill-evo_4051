@@ -1,13 +1,20 @@
 # GraphSkillEvo 课程复现
 
-使用固定 Qwen3.5-9B，在 SearchQA 和 HotpotQA 上运行无技能、初始技能和原始 GraphSkillEvo。当前已完成成员 A 的正式验证集对照；留出测试、改进选择器和消融尚未完成。
+使用固定 Qwen3.5-9B，在 SearchQA 和 HotpotQA 上运行无技能、初始技能和原始 GraphSkillEvo。当前已完成 HotpotQA v2 三种子开发集对照，12/12 子运行成功；留出测试、改进选择器和消融尚未完成。
 
-| 数据集 | 无技能 EM / F1 | 初始技能 EM / F1 | 进化后 EM / F1 |
-|---|---:|---:|---:|
-| SearchQA | 50.00 / 64.33 | 66.67 / 72.52 | 66.67 / 72.52 |
-| HotpotQA | 83.33 / 88.33 | 86.67 / 91.56 | 90.00 / 92.22 |
+HotpotQA 固定为 **300 train / 150 val / 1000 test**，训练每难度100、验证每难度50。下表为相同150条验证题上 seed 0、42、127 的百分比均值 ± 样本标准差；验证集参与技能选择，不能当作留出测试成绩。
 
-数值为百分比，各 30 条验证样例，种子 42；验证集参与技能选择，以上不是留出测试成绩。设置、成本与限制见 [正式结果报告](docs/formal-results.md)，课程要求见 [PDF](nlp-project5.pdf)，团队分工见 [group_div.md](group_div.md)。
+| 条件 | EM | F1 |
+|---|---:|---:|
+| 无技能 | 69.78 ± 1.02 | 80.77 ± 0.94 |
+| 初始技能 | 68.00 ± 1.33 | 78.88 ± 1.73 |
+| 进化选定技能 | 70.89 ± 1.02 | 82.36 ± 1.39 |
+
+进化相对初始技能平均 EM +2.89、F1 +3.47 个百分点；相对无技能仅 +1.11、+1.59。方法流程和开发基线已完成，完整效果结论仍需测试集与团队后续实验。各种子成绩、成本、核验和限制见 [HotpotQA v2 结果](docs/hotpotqa-v2-results.md)。
+
+SearchQA 的旧 seed42 开发集结果为无技能50.00/64.33、初始及进化后66.67/72.52（EM/F1）；旧 HotpotQA 未分层结果另行保留，不混入新比较，见 [旧批次报告](docs/formal-results.md)。课程要求见 [PDF](nlp-project5.pdf)，团队分工见 [group_div.md](group_div.md)。
+
+教授说明已明确允许从官方 distractor 数据自建分层划分。测试数量1000按用户明确指定执行；整体规模与原 PDF 限额的关系仍待确认。用户已授权对成员 A 的三种固定条件开展留出测试；它使用独立批次，测试成绩不混入上面的验证集表。
 
 ## 安装与配置
 
@@ -41,13 +48,22 @@ python -m repro validate-data --config configs/searchqa.course.yaml
 python -m repro validate-data --config configs/hotpotqa.course.yaml
 ```
 
+HotpotQA 新分层方案使用以下显式入口，读取已下载并校验过的完整 Parquet 缓存：
+
+```powershell
+python scripts/prepare_hotpotqa.py --stratified
+python -m repro validate-data --config config.yaml --preset course --preset hotpotqa.provisional
+```
+
+当前数据位于 `data/processed/hotpotqa-stratified-v2/`；三份原始 ID 列表及数据参考清单位于 `manifests/hotpotqa-stratified-v2/`。数据抽样 seed 固定为 42；实验 seed 为 `0、42、127`。v2 保持 v1 的训练／验证 ID，测试集从 200 扩为 1000，包含原来的 200 条。原有目录不覆盖。
+
 | 方案 | train / val / test | 数据目录 |
 |---|---|---|
 | course | 100 / 30 / 50 | `data/processed/<数据集>` |
 | pilot | 10 / 5 / 0 | `data/pilot/<数据集>` |
 | offline | 6 / 3 / 0，synthetic | `tests/fixtures/<数据集>` |
 
-SearchQA 使用上游固定 ID。HotpotQA 当前是官方公开 distractor 数据自行固定的子集，`course_split_verified=false`，仍需确认课程划分一致性。来源 revision、原始文件哈希和固定分区保存在数据清单中；准备脚本默认拒绝覆盖。详见 [data/README.md](data/README.md)。
+SearchQA 使用上游固定 ID。旧 HotpotQA 100/30/50 未按难度分层，保留为历史划分；新方案的数据来源和分层方法已有教授说明，数量口径仍待确认。来源 revision、原始文件哈希和固定分区保存在数据清单中；准备脚本默认拒绝覆盖。详见 [data/README.md](data/README.md)。
 
 ## 基本检查与实验入口
 
@@ -74,7 +90,15 @@ python scripts/run_formal.py
 
 pilot 默认一轮；需覆盖交叉算子时可加 `--set evolution.generations=2`。正式入口在启动时保存配置快照，串行完成两数据集的三组条件及选定技能重复验证，共用一份临时模型服务，结束后释放服务。重复验证仍使用同一种子，不能当作额外种子。
 
-后续实验种子固定为 `0、42、127`，通过 `--set experiment.seed=数字` 分批执行；数据选择种子和固定分区保持不变。目前仅 seed 42 已完成，补跑及旧结果复用条件见 [复现计划](docs/reproduction-plan.md)。
+后续实验种子固定为 `0、42、127`；数据选择种子和固定分区保持不变。旧方案仅 seed 42 已完成，新的 HotpotQA 划分需要分别运行全部三个种子。SearchQA 的旧结果复用条件见 [复现计划](docs/reproduction-plan.md)。
+
+新 HotpotQA 暂定开发集实验使用同一入口的显式模式：
+
+```powershell
+python scripts/run_formal.py --provisional-hotpotqa --seeds 0 42 127
+```
+
+此模式只比较新 HotpotQA 的无技能、初始技能、原方法和选定技能重复验证；每个种子独立进化，共用本批次的一份临时模型服务。采用三轮、每轮两个新候选及原解码、重试规则；因验证集扩大五倍，每条件调用/token 预算上限同步扩大五倍至 3000 次 / 1000 万输出 token。规模暂定状态写入批次，不宣称已获教授确认。默认不带该选项的命令仍运行旧的双数据集 100/30/50 方案。
 
 需要逐组运行时，先在一个终端启动服务：
 
@@ -90,6 +114,14 @@ python -m repro evaluate --config configs/searchqa.course.yaml --condition origi
 ```
 
 `no_skill`、`initial_skill` 和 `original` 共用模型与运行规则。进化只接收训练和验证数据；`improved` / `ablation` 预留给 B，未实现时明确报错。测试默认关闭，应在所有方法和技能选择定稿后独立评估。
+
+成员 A 的三种子技能已按验证集自动选定。留出测试入口读取完成批次的配置和技能快照，不读取正在编辑的根配置，也不执行进化：
+
+```powershell
+python scripts/run_formal.py --test-from-batch outputs/provisional-hotpotqa/20261102T050827834273Z-ae48d3
+```
+
+该入口冻结初始技能、三个选定技能、模型指纹、数据文件及全部1000个测试ID，再串行评估三个种子 × 三条件，共九组。测试模式禁止额外配置、种子或参数覆盖；只在局部派生配置中开启测试，根配置仍默认关闭。测试结果、逐题失败及样例不得反馈给进化、选择器设计、提示词或调参。B 的改进和消融不包含在本次 A 测试中。
 
 ## GGUF 备用路线
 
@@ -122,4 +154,4 @@ python -m pytest -q
 python -m ruff check src/repro tests scripts
 ```
 
-正式批次位于 `outputs/formal/20261101T135059023401Z-163af6/`，其中 `handoff.md` 索引逐题预测、调用、技能和图文件。`outputs/` 不随 Git 提交，交接需复制整个批次目录。固定数据身份保留在 `manifests/data-v1/`；旧 pilot/v1 说明归档到 `docs/archive/`，原始清单保持不变，旧发布和环境锁定命令已移除。
+当前 HotpotQA v2 批次位于 `outputs/provisional-hotpotqa/20261102T050827834273Z-ae48d3/`，汇总与 `handoff.md` 位于 `outputs/reports/hotpotqa-v2/20261102T105531089060Z-76f4bd/`。`outputs/` 不随 Git 提交，交接需复制完整批次和报告。当前 HotpotQA 数据身份位于 `manifests/hotpotqa-stratified-v2/`；旧小规模清单、报告和中断产物继续保留，旧 pilot/v1 说明归档到 `docs/archive/`。

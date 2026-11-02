@@ -66,6 +66,11 @@ DEFAULTS: dict[str, Any] = {
         "hotpotqa_raw_train": None,
         "hotpotqa_raw_val": None,
         "hotpotqa_raw_test": None,
+        "hotpotqa_train_per_level": 100,
+        "hotpotqa_val_per_level": 50,
+        "hotpotqa_test_count": 1000,
+        "hotpotqa_protocol_file": None,
+        "hotpotqa_ids_output": None,
         "seed": 42,
         "train_count": 100,
         "val_count": 30,
@@ -210,6 +215,8 @@ def validate_config(config: dict[str, Any]) -> None:
         "seed", "train_count", "val_count", "test_count", "pilot_seed", "pilot_train_count", "pilot_val_count"
     ):
         _positive_int(preparation[key], f"preparation.{key}", zero=True)
+    for key in ("hotpotqa_train_per_level", "hotpotqa_val_per_level", "hotpotqa_test_count"):
+        _positive_int(preparation[key], f"preparation.{key}")
     for key in ("raw_cache_dir", "searchqa_manifest_dir"):
         if not isinstance(preparation[key], str) or not preparation[key].strip():
             raise ValueError(f"preparation.{key} must be a nonempty path")
@@ -217,7 +224,10 @@ def validate_config(config: dict[str, Any]) -> None:
         value = preparation[key]
         if value is not None and (not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{40}", value)):
             raise ValueError(f"preparation.{key} must be a fixed 40-character commit revision")
-    for key in ("searchqa_raw_path", "hotpotqa_raw_train", "hotpotqa_raw_val", "hotpotqa_raw_test"):
+    for key in (
+        "searchqa_raw_path", "hotpotqa_raw_train", "hotpotqa_raw_val", "hotpotqa_raw_test",
+        "hotpotqa_protocol_file", "hotpotqa_ids_output",
+    ):
         value = preparation[key]
         if value is not None and (not isinstance(value, str) or not value.strip()):
             raise ValueError(f"preparation.{key} must be a nonempty path or null")
