@@ -44,7 +44,6 @@ def test_weights_deferred_does_not_make_infrastructure_unready(tmp_path, monkeyp
         "check_dependencies",
         "check_upstream",
         "check_gpu",
-        "check_wsl",
         "check_inference_runtime",
         "check_data",
     ):
@@ -60,6 +59,18 @@ def test_weights_deferred_does_not_make_infrastructure_unready(tmp_path, monkeyp
 def test_gpu_output_must_contain_valid_device(monkeypatch):
     monkeypatch.setattr(diagnostics, "run_command", lambda *args, **kwargs: (0, "unexpected output"))
     assert diagnostics.check_gpu()["status"] != "ok"
+
+
+def test_native_runtime_checks_current_interpreter_without_environment_folder(tmp_path, monkeypatch):
+    monkeypatch.setattr(diagnostics.sys, "executable", "custom-environment/python.exe")
+    monkeypatch.setattr(diagnostics.platform, "system", lambda: "Windows")
+
+    def run(command, **kwargs):
+        assert command[:2] == ["custom-environment/python.exe", "-c"]
+        return 0, json.dumps({"gpu_available": True, "bf16_matmul_result": 8.0})
+
+    monkeypatch.setattr(diagnostics, "run_command", run)
+    assert diagnostics.check_inference_runtime(tmp_path)["status"] == "ok"
 
 
 def test_data_readiness_checks_manifest_and_all_splits(tmp_path):

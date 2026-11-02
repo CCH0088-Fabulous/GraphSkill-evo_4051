@@ -32,17 +32,11 @@ def prepare_run(config: dict[str, Any], *, offline: bool = False) -> tuple[RunSt
         for split, limit in COURSE_LIMITS.items():
             if manifest["splits"][split]["count"] > limit:
                 raise ValueError(f"Course profile: {split} contains more than {limit} examples")
-    from repro.freezing.verification import validate_frozen_config, validate_model_fingerprint
-
-    frozen = validate_frozen_config(config)
     identity = capture_model_identity(config["model"], synthetic=is_synthetic)
-    validate_model_fingerprint(frozen, identity)
     store = RunStore(resolve_path(config["experiment"]["output_root"]))
     store.save_snapshot(config, environment_snapshot(offline=offline), source_snapshot())
     store.save_json("data_manifest.json", manifest)
     store.save_json("model_identity.json", identity)
-    if frozen:
-        store.save_json("frozen_protocol.json", frozen)
     store.record_event("data_verified", dataset=manifest["dataset"], synthetic=is_synthetic)
     budget = config["budget"]
     ledger = UsageLedger(

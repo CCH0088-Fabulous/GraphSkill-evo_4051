@@ -14,7 +14,9 @@ they do not certify a current run. Version directories refuse overwrite.
 The original course data manifests are separately retained in `data-v1/`. A course
 run verifies its dataset files and compares IDs, partitions, source revisions and
 checksums with the corresponding reference; the upstream checkout path may differ.
-See `docs/frozen-settings-v1.md` for historical acceptance and truncation/retry rules.
+See `docs/archive/README.md` for historical acceptance records. The former v1
+publication and strict verification commands have been retired; these snapshots
+remain unchanged as provenance. Current rules are in `docs/experiment-protocol.md`.
 
 The course profile defaults to at most 100 train, 30 validation, and 50 test examples
 per dataset. GPU-hour planning is unrelated to this profile and is not enforced here.

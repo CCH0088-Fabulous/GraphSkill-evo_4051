@@ -80,7 +80,7 @@ class ChatClient:
             return result
         except httpx.HTTPError as exc:
             raise RuntimeError(
-                "Model service is unavailable. Start scripts/serve_gguf.ps1 for llama_cpp "
+                "Model service is unavailable. Start python scripts/gguf.py serve for llama_cpp "
                 "or scripts/serve_model.ps1 for Transformers first."
             ) from exc
 

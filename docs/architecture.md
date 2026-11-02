@@ -13,6 +13,7 @@
 | `inference/accounting.py` | 调用、token、失败重试预算计量 | A |
 | `serving/model.py` | 加载并执行本地模型，校验上下文 | A |
 | `serving/app.py` | 本地模型的 HTTP 协议边界 | A |
+| `serving/llama_install.py`、`llama_launcher.py` | GGUF 固定运行库安装、服务进程参数 | A |
 | `integration/` | 官方 GraphSkillEvo 的适配边界 | A |
 | `experiments/` | 基线和进化实验编排 | A |
 | `selectors/` | 每轮训练失败案例的选择 | B |
@@ -20,6 +21,8 @@
 | `artifacts/` | 配置、预测、轨迹和技能的持久化 | A |
 | `visualization/` | 技能内部流程图、候选谱系图导出 | A |
 | `diagnostics.py` | 只读检查环境和所需文件 | A |
+
+`scripts/` 仅保留数据准备、单题示例、pilot、正式批次和 GGUF 等必要入口。`scripts/gguf.py` 只解析并分发检查、安装、启动命令，具体工作由 `serving/` 模块承担。
 
 ## 公共契约
 

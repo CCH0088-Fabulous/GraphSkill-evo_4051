@@ -24,11 +24,12 @@ data:
 experiment:
   condition: original
   profile: course
+  # Planned experiment seeds: [0, 42, 127]. Override experiment.seed once per batch.
+  # Keep preparation seeds and fixed dataset IDs unchanged.
   seed: 42
   output_root: outputs
   allow_test: false
   initial_skill: null
-  freeze_manifest: null  # Optional legacy verification; not enabled by the course presets.
 
 evolution:
   generations: 1
@@ -78,17 +79,6 @@ presets:
     budget:
       max_calls: 600
       max_completion_tokens: 2000000
-  acceptance:
-    experiment:
-      allow_test: false
-      freeze_manifest: null
-    evolution:
-      generations: 2
-      train_eval_num: 10
-      reflection_failure_k: 3
-    budget:
-      max_calls: 300
-      max_completion_tokens: 1200000
   offline:
     experiment:
       profile: synthetic

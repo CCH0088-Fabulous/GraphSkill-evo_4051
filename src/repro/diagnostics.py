@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 import csv
 import importlib.metadata
 import json
@@ -105,24 +104,6 @@ def check_gpu() -> dict[str, Any]:
     return _check("gpu", "ok", "NVIDIA GPU detected", devices=devices)
 
 
-def check_wsl() -> dict[str, Any]:
-    if platform.system() != "Windows":
-        return _check("wsl", "ok", "Native Linux does not require WSL", required=False)
-    status, output = run_command(["wsl", "--list", "--quiet"])
-    distributions = [line.strip() for line in output.splitlines() if line.strip()]
-    if status or not distributions:
-        return _check(
-            "wsl",
-            "deferred",
-            "Optional WSL is not installed; native Windows inference does not require it",
-            required=False,
-            command_output=output,
-        )
-    return _check(
-        "wsl", "ok", "Optional WSL distribution detected", required=False, distributions=distributions
-    )
-
-
 def _check_llama_runtime(project_root: Path) -> dict[str, Any]:
     from repro.serving.llama_runtime import locate_server
 
@@ -157,15 +138,11 @@ def check_inference_runtime(
 ) -> dict[str, Any]:
     if (config or {}).get("model", {}).get("backend", "transformers") == "llama_cpp":
         return _check_llama_runtime(project_root)
-    if platform.system() == "Windows":
-        python_path = project_root / ".venv" / "Scripts" / "python.exe"
-    elif platform.system() == "Linux":
-        python_path = project_root / ".venv-linux" / "bin" / "python"
-    else:
+    if platform.system() not in {"Windows", "Linux"}:
         return _check(
             "inference_runtime", "missing", "The NVIDIA inference workflow requires Windows or Linux"
         )
-    command = [str(python_path)]
+    command = [sys.executable]
     code = (
         "import json,torch,transformers,fastapi,uvicorn,accelerate; "
         "from transformers.models.qwen3_5 import Qwen3_5ForConditionalGeneration; "
@@ -391,7 +368,6 @@ def collect_diagnostics(
         check_dependencies(),
         check_upstream(project_root),
         check_gpu(),
-        check_wsl(),
         check_inference_runtime(project_root, config),
         check_data(project_root, config),
         check_model(project_root, config),
@@ -419,16 +395,3 @@ def doctor_text(report: Mapping[str, Any]) -> str:
     lines.append(f"Model weights ready: {report['model_ready']}")
     lines.append(f"Experiment ready: {report['experiment_ready']}")
     return "\n".join(lines)
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check-weights", type=Path, required=True)
-    args = parser.parse_args()
-    complete, message = validate_model_directory(args.check_weights)
-    print(message)
-    return 0 if complete else 2
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

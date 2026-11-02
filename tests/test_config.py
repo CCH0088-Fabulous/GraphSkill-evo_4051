@@ -127,29 +127,32 @@ def test_child_config_cannot_disable_a_selected_data_reference(tmp_path):
 def test_existing_entrypoints_resolve_central_presets(dataset):
     course = load_config(f"configs/{dataset}.course.yaml")
     pilot = load_config(f"configs/{dataset}.pilot.yaml")
-    acceptance = load_config(f"configs/{dataset}.acceptance.yaml")
     offline = load_config(f"configs/offline.{dataset}.yaml")
     assert course["data"]["manifest"] == f"manifests/data-v1/{dataset}.json"
     assert (course["evolution"]["generations"], course["budget"]["max_calls"]) == (3, 600)
-    assert pilot["data"]["split_dir"] == acceptance["data"]["split_dir"] == f"data/pilot/{dataset}"
-    assert (acceptance["evolution"]["generations"], acceptance["budget"]["max_calls"]) == (2, 300)
+    assert pilot["data"]["split_dir"] == f"data/pilot/{dataset}"
     assert offline["experiment"]["profile"] == "synthetic"
     assert offline["data"]["split_dir"] == f"tests/fixtures/{dataset}"
 
 
 @pytest.mark.parametrize("dataset", ["searchqa", "hotpotqa"])
-@pytest.mark.parametrize("profile", ["course", "pilot", "acceptance", "offline"])
+@pytest.mark.parametrize("profile", ["course", "pilot", "offline"])
 def test_existing_entrypoints_match_direct_root_presets(dataset, profile):
     if profile == "course":
         names = ["course", f"{dataset}.course"]
-    elif profile == "acceptance":
-        names = ["acceptance", f"{dataset}.pilot"]
     elif profile == "offline":
         names = ["offline", f"{dataset}.offline"]
     else:
         names = [f"{dataset}.pilot"]
     entry = f"offline.{dataset}" if profile == "offline" else f"{dataset}.{profile}"
     assert load_config(f"configs/{entry}.yaml") == load_config("config.yaml", presets=names)
+
+
+def test_declared_data_identity_cannot_be_disabled_from_cli(tmp_path):
+    path = tmp_path / "formal.yaml"
+    path.write_text("data:\n  manifest: recorded-data.json\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="data manifest cannot be overridden"):
+        load_config(path, ["data.manifest=null"])
 
 
 def test_environment_and_cli_override_inheritance_in_order(tmp_path, monkeypatch):

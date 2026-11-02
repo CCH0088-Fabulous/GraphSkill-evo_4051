@@ -56,13 +56,13 @@ model:
 ```
 
 根配置选择用户提供的完整 Qwen3.5-9B 目录，使用 BF16 / SDPA，已通过 32GB 显存环境的双数据集两轮资格验收。当前 Transformers 服务的 BF16、SDPA 和 `cuda:0` 属于服务实现固定设置，不是 YAML 可切换选项。
-`scripts/serve_model.ps1 -Config config.yaml` 通过 `serving/transformers_launcher.py` 读取同一份模型、路径、上下文和 thinking 设置。
+`python -m repro.serving.transformers_launcher --config config.yaml` 读取同一份模型、路径、上下文和 thinking 设置；PowerShell 包装脚本 `scripts/serve_model.ps1` 也调用这一入口。
 客户端在执行前核对服务报告的模型名、thinking、上下文和本地路径；更改配置不会自动下载权重。
 
 同一轮比较中所有条件必须固定模型文件 SHA-256、tokenizer、精度、推理运行库版本、上下文、thinking 和解码设置。
 真实 Transformers 运行记录所有权重分片及相关配置、tokenizer 文件的 SHA-256，并保存整体 fingerprint。
 当前模型为用户提供的本地文件，上游 revision 尚未独立核验，不把另一目录的非权重 revision 当作该模型 revision。
-历史 GGUF 路线保存在 `configs/local.gguf.yaml`，不参与当前 Qwen3.5-9B 正式对照。
+GGUF 备用路线使用 `configs/local.gguf.yaml`，入口统一为 `scripts/gguf.py`，安装与启动见 [GGUF 说明](gguf.md)。它不参与当前 Qwen3.5-9B 正式对照。
 
 `max_context_tokens` 是输入加输出的总窗口。候选技能生成另有 `evolution.operator_max_completion_tokens`；两种角色共享同一模型上下文，窗口必须能同时容纳提示词和请求的输出。
 加载配置会检查生成上限小于总窗口；实际输入长度仍由服务检查，超长时不静默滑窗或截断。
@@ -84,6 +84,6 @@ model:
 
 ## 历史协议与正式数据
 
-v1 是两轮验收后保存的历史协议，保留在 `manifests/experiment-v1/`；当前 course 配置不再强制引用它，也不要求组员具有相同的模型路径或完整依赖清单。GPU 型号本来就不在 v1 配置校验范围内。历史记录和当时的限制见 `docs/frozen-settings-v1.md`。
+v1 是两轮验收后保存的历史协议，保留在 `manifests/experiment-v1/`；发布及强制校验的旧命令已移除。组员可配置自己的模型路径和环境，运行时记录实际值。历史记录见 [归档说明](archive/README.md)，其中的旧命令不再作为操作步骤。
 
 正式数据仍由各 course 配置的 `data.manifest` 指向 `manifests/data-v1/` 归档清单。运行前校验数据文件、ID 顺序、分区、来源 revision 和原始数据哈希；上游源码目录可以因机器而异。每次运行记录生效配置、数据清单、模型指纹和环境信息，供团队核对可比性。

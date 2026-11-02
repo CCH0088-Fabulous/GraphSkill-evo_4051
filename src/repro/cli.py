@@ -26,16 +26,6 @@ def build_parser() -> argparse.ArgumentParser:
     show.add_argument("--config", default="config.yaml")
     show.add_argument("--preset", action="append", default=[], help="Apply a named config preset")
     show.add_argument("--set", action="append", default=[], metavar="SECTION.KEY=VALUE")
-    freeze = sub.add_parser("freeze", help="Publish an immutable protocol after two-round acceptance")
-    freeze.add_argument("--version", required=True)
-    freeze.add_argument("--acceptance-run", type=Path, required=True)
-    freeze.add_argument("--seeds", type=int, nargs="+", default=[42])
-    check = sub.add_parser("verify-freeze", help="Verify protocol files and effective formal settings")
-    check.add_argument("--config", required=True)
-    check.add_argument("--preset", action="append", default=[], help="Apply a named config preset")
-    check.add_argument("--set", action="append", default=[], metavar="SECTION.KEY=VALUE")
-    acceptance = sub.add_parser("audit-acceptance", help="Audit two-round pilot evidence without inference")
-    acceptance.add_argument("--run", type=Path, required=True)
     for name in ("run", "evaluate"):
         experiment = sub.add_parser(
             name, help="Run an experiment" if name == "run" else "Evaluate saved skill"
@@ -68,25 +58,6 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _dispatch(args: argparse.Namespace) -> int:
-    if args.command == "audit-acceptance":
-        from repro.artifacts.acceptance import audit_acceptance
-
-        audit = audit_acceptance(args.run)
-        print(json.dumps(audit, ensure_ascii=False, indent=2))
-        return 0 if audit["status"] == "passed" else 1
-    if args.command == "freeze":
-        from repro.freezing.publication import publish_freeze
-
-        print(publish_freeze(args.version, args.acceptance_run, seeds=args.seeds))
-        return 0
-    if args.command == "verify-freeze":
-        from repro.freezing.verification import validate_frozen_config
-
-        frozen = validate_frozen_config(load_config(args.config, args.set, presets=args.preset))
-        if frozen is None:
-            raise ValueError("This configuration has no frozen protocol reference")
-        print(json.dumps(frozen, indent=2))
-        return 0
     if args.command == "show-config":
         config = load_config(args.config, args.set, presets=args.preset)
         print(json.dumps(config, ensure_ascii=False, indent=2))

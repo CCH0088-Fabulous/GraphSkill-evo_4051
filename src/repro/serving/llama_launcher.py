@@ -66,18 +66,16 @@ def build_command(
     ]
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--model-path", type=Path)
-    parser.add_argument("--server-path", type=Path)
     parser.add_argument("--port", type=int)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     settings = load_config(args.config)["model"]
     command = build_command(
         settings,
         model_path=args.model_path,
-        server_path=args.server_path,
         port=args.port,
     )
     from repro.serving.gguf import validate_gguf_file

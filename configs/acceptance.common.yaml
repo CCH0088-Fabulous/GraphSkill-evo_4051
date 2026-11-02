@@ -1,2 +1,0 @@
-_base_: ../config.yaml
-_presets_: [acceptance]

@@ -7,7 +7,50 @@ from pathlib import Path
 import pytest
 import yaml
 
-from repro.experiments.pilot import run_pilots
+from repro.experiments.pilot import load_pilot_configs, run_pilots
+
+
+@pytest.mark.parametrize(
+    "rounds,allow_test,test_count,synthetic,valid",
+    [
+        (2, False, 0, False, True),
+        (0, False, 0, False, False),
+        (4, False, 0, False, False),
+        (2, True, 0, False, False),
+        (2, False, 1, False, False),
+        (2, False, 0, True, False),
+    ],
+)
+def test_pilot_round_override_preserves_real_data_and_test_boundaries(
+    monkeypatch, rounds, allow_test, test_count, synthetic, valid
+):
+    from repro.experiments import pilot
+
+    def config(path, overrides):
+        dataset = Path(path).name.split(".")[0]
+        return {
+            "data": {"dataset": dataset, "split_dir": dataset},
+            "model": {"backend": "transformers"},
+            "evolution": {"generations": rounds},
+            "experiment": {"allow_test": allow_test},
+        }
+
+    monkeypatch.setattr(pilot, "load_config", config)
+    monkeypatch.setattr(pilot, "resolve_path", lambda path: path)
+    monkeypatch.setattr(
+        pilot,
+        "verify_manifest",
+        lambda path: {
+            "dataset": path,
+            "synthetic": synthetic,
+            "splits": {"test": {"count": test_count}},
+        },
+    )
+    if valid:
+        assert set(load_pilot_configs()) == {"searchqa", "hotpotqa"}
+    else:
+        with pytest.raises(ValueError):
+            load_pilot_configs()
 
 
 @pytest.mark.parametrize("fail_searchqa", [False, True])
@@ -88,5 +131,5 @@ def test_pilot_cli_reports_incomplete_batch_as_failure(tmp_path, monkeypatch, st
     from scripts import run_pilots as entrypoint
 
     (tmp_path / "summary.json").write_text(json.dumps({"status": status}), encoding="utf-8")
-    monkeypatch.setattr(entrypoint, "run_pilots", lambda overrides, profile: tmp_path)
+    monkeypatch.setattr(entrypoint, "run_pilots", lambda overrides: tmp_path)
     assert entrypoint.main([]) == expected

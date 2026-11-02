@@ -40,7 +40,6 @@ DEFAULTS: dict[str, Any] = {
         "allow_test": False,
         "profile": "course",
         "initial_skill": None,
-        "freeze_manifest": None,
     },
     "evolution": {
         "generations": 1,
@@ -173,7 +172,6 @@ def load_config(
     layer = _apply_presets(_read_layer(config_path), presets or [], config_path)
     layer.pop("presets", None)
     config = _merge(DEFAULTS, layer)
-    declared_freeze = config["experiment"].get("freeze_manifest")
     declared_data_manifest = config["data"].get("manifest")
     environment = {**dotenv_values(PROJECT_ROOT / ".env"), **os.environ}
     for env_name, option in (
@@ -189,8 +187,6 @@ def load_config(
         if not sep or len(parts) != 2 or parts[0] not in config or parts[1] not in config[parts[0]]:
             raise ValueError(f"Unknown override {override!r}; expected section.option=value")
         config[parts[0]][parts[1]] = yaml.safe_load(text)
-    if declared_freeze and config["experiment"].get("freeze_manifest") != declared_freeze:
-        raise ValueError("A declared freeze_manifest cannot be overridden or disabled")
     if declared_data_manifest and config["data"].get("manifest") != declared_data_manifest:
         raise ValueError("A declared data manifest cannot be overridden or disabled")
     validate_config(config)

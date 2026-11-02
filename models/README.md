@@ -7,7 +7,9 @@
 启动脚本只加载本地完整目录，不会根据模型名称自动联网补文件。
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/serve_model.ps1 -Config config.yaml
+python -m repro.serving.transformers_launcher --config config.yaml
 ```
 
 模型名 `Qwen/Qwen3.5-9B` 是 HTTP API 中的固定标识，模型路径是磁盘目录；两者分别配置。
+
+GGUF 文件放在仓库外，通过根配置的 `local.gguf` preset 指定；检查、运行库安装和启动统一使用 `scripts/gguf.py`，见 [GGUF 说明](../docs/gguf.md)。

@@ -18,14 +18,10 @@ _DATASETS = ("searchqa", "hotpotqa")
 _CONDITIONS = ("no_skill", "initial_skill", "original", "selected_val")
 
 
-def load_pilot_configs(
-    overrides: list[str] | None = None, *, profile: str = "pilot"
-) -> dict[str, dict[str, Any]]:
+def load_pilot_configs(overrides: list[str] | None = None) -> dict[str, dict[str, Any]]:
     """Reject mismatched models, data boundaries or accidental test use before starting."""
-    if profile not in {"pilot", "acceptance"}:
-        raise ValueError("Unknown pilot profile")
     configs = {
-        name: load_config(PROJECT_ROOT / f"configs/{name}.{profile}.yaml", overrides or [])
+        name: load_config(PROJECT_ROOT / f"configs/{name}.pilot.yaml", overrides or [])
         for name in _DATASETS
     }
     shared_model = configs[_DATASETS[0]]["model"]
@@ -35,18 +31,15 @@ def load_pilot_configs(
             raise ValueError(f"Dataset mismatch for {name}")
         if manifest.get("synthetic") or manifest["splits"]["test"]["count"]:
             raise ValueError(f"{name} pilot must contain real data and no test examples")
-        expected_rounds = 2 if profile == "acceptance" else 1
-        if config["experiment"]["allow_test"] or config["evolution"]["generations"] != expected_rounds:
-            raise ValueError(
-                f"{profile} requires test disabled and exactly {expected_rounds} evolution rounds"
-            )
+        if config["experiment"]["allow_test"] or not 1 <= config["evolution"]["generations"] <= 3:
+            raise ValueError("Pilot requires test disabled and one to three evolution rounds")
         if config["model"] != shared_model or shared_model["backend"] != "transformers":
             raise ValueError("Both pilots must use the same configured Transformers model")
     return configs
 
 
-def run_pilots(overrides: list[str] | None = None, *, profile: str = "pilot") -> Path:
-    configs = load_pilot_configs(overrides, profile=profile)
+def run_pilots(overrides: list[str] | None = None) -> Path:
+    configs = load_pilot_configs(overrides)
     report = RunStore(PROJECT_ROOT / "outputs/pilot-check")
     results: list[dict[str, Any]] = []
     started = time.perf_counter()
@@ -60,7 +53,7 @@ def run_pilots(overrides: list[str] | None = None, *, profile: str = "pilot") ->
             "test_examples_used": False,
             "datasets": list(_DATASETS),
             "conditions": list(_CONDITIONS),
-            "profile": profile,
+            "profile": "pilot",
         },
     )
     print(f"Pilot report: {report.path}", flush=True)
@@ -83,7 +76,7 @@ def run_pilots(overrides: list[str] | None = None, *, profile: str = "pilot") ->
                     selected_condition = "original" if condition == "selected_val" else condition
                     output_root = report.path / "runs" / dataset / condition
                     config = load_config(
-                        PROJECT_ROOT / f"configs/{dataset}.{profile}.yaml",
+                        PROJECT_ROOT / f"configs/{dataset}.pilot.yaml",
                         [
                             *(overrides or []),
                             f"experiment.condition={selected_condition}",
