@@ -13,6 +13,7 @@ from repro.contracts import QAExample
 from repro.datasets.hotpotqa import hotpotqa_example
 from repro.datasets.io import SPLITS, iter_records
 from repro.datasets.manifests import file_sha256, freeze_splits, verify_manifest
+from repro.datasets.protocol import same_source_after_instruction_rename
 
 LEVELS = ("easy", "medium", "hard")
 SAMPLER = "sha256_seeded_id_rank_v1"
@@ -186,7 +187,7 @@ def prepare_stratified_hotpotqa(
         if (
             manifest["dataset"] != "hotpotqa"
             or manifest["seed"] != seed
-            or manifest["source"] != source
+            or not same_source_after_instruction_rename(manifest["source"], source)
             or {split: info["count"] for split, info in manifest["splits"].items()} != sizes
         ):
             raise FileExistsError("Existing data use a different sampling protocol; choose a new directory")

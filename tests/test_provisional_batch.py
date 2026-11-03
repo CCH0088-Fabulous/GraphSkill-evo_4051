@@ -117,6 +117,35 @@ def test_provisional_preflight_rejects_changed_teacher_instruction(tmp_path, mon
         provisional.load_provisional_config("config.yaml")
 
 
+@pytest.mark.parametrize("changed_contents", [False, True])
+def test_provisional_renamed_instruction_keeps_recorded_provenance(
+    tmp_path, monkeypatch, changed_contents,
+):
+    config, manifest = _protocol(tmp_path, monkeypatch)
+    recorded_instruction = deepcopy(manifest["source"]["instruction"])
+    original = Path(config["preparation"]["hotpotqa_protocol_file"])
+    renamed = original.with_name("hotpot_split.md")
+    original.rename(renamed)
+    config["preparation"]["hotpotqa_protocol_file"] = str(renamed)
+    frozen = {
+        path: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in (
+            Path(config["data"]["manifest"]),
+            Path(config["data"]["split_dir"]) / "split_manifest.json",
+        )
+    }
+    if changed_contents:
+        renamed.write_bytes(renamed.read_bytes() + b"\nChanged sampling counts")
+        with pytest.raises(ValueError, match="teacher instruction differs"):
+            provisional.load_provisional_config("config.yaml")
+    else:
+        actual, source = provisional.load_provisional_config("config.yaml")
+        assert actual == config and not actual["experiment"]["allow_test"]
+        assert source["instruction"] == recorded_instruction
+        assert not original.exists()
+    assert all((path.read_bytes(), path.stat().st_mtime_ns) == snapshot for path, snapshot in frozen.items())
+
+
 def test_provisional_test_flag_is_rejected_before_serving(tmp_path, monkeypatch):
     config, _ = _protocol(tmp_path, monkeypatch)
     config["experiment"]["allow_test"] = True

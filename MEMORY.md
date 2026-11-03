@@ -1,6 +1,6 @@
 # Repository memory
 
-Last updated: 2026-11-02 (Asia/Shanghai).
+Last updated: 2026-11-03 (Asia/Shanghai).
 
 This file preserves context for future work. Read it together with `AGENTS.md`.
 Current user instructions and verified repository state take precedence over stale notes.
@@ -14,7 +14,7 @@ Keep configuration values in `config.yaml`; keep measurements in their original 
 - Use native Windows by default. Do not install or enable WSL. Existing Linux is an optional route.
 - Do not download model weights without an explicit request. Bootstrap and serving must use existing local weights; non-weight assets require an explicit allowlist.
 - During long GPU experiments, waiting is acceptable. Use GPT-6 luna for model-run monitoring when delegation is available; keep monitoring read-only and avoid frequent empty progress updates.
-- HotpotQA v2 development comparison is complete. The held-out test was authorized, but the latest user instruction explicitly stops experiments and requests analysis of Linux and parallel inference only. Do not restart any service, test run, install packages, or begin migration until a new action request. Preserve test outputs and do not feed cases/results back to evolution, selectors, prompts, tuning or skill selection. Root config stays test-disabled.
+- HotpotQA experiments remain explicitly stopped. The latest authorized local change is fixing the sampling-instruction rename; do not restart services/tests, install Linux dependencies or implement batching as part of that change. Preserve test outputs and do not feed cases/results back to evolution, selectors, prompts, tuning or skill selection. Root config stays test-disabled.
 - After modifying code, configuration or documentation, finish the user-facing response with a suggested Git commit message. This preference does not request an automatic commit or push. For a purely analytical answer, omit the commit suggestion.
 
 ## Project and source of truth
@@ -65,7 +65,9 @@ Keep configuration values in `config.yaml`; keep measurements in their original 
 ## Outstanding work and recommendations
 
 - PDF Project 5 explicitly allows a model such as Qwen3.5-9B. It requires fixed-test EM/F1/latency and preservation of the provided data partitions; it does not prescribe a minimum number of random seeds.
-- The professor supplied `AIAA_4051_Hotpot_QA_Data_in_Evolving_Graph-Structured_Skills_for_LLM_Agents_(1).md`. It explicitly permits constructing project splits from official distractor train/dev, stratifying train/val by easy/medium/hard, retaining all context, and submitting original IDs. The former question about another private course dataset is resolved. Its Test sampling/last paragraph say 200 but table Total says 1000. The user first authorized 300/150/200, then explicitly paused experiments and specified test=1000. Current settings are 300/150/1000; retain the original professor file and record the user-specified resolution instead of editing it. The overall size versus PDF 100/30/50 cap remains provisional.
+- The professor's instruction is now named `hotpot_split.md`; its contents retain SHA-256 `47d0623b7c263ce8011a06ac0da5e53e6a1be03d9298b84ec8f53b171d16fc85`. Historical manifests retain the original long filename and original bytes. It permits official distractor train/dev splits, difficulty stratification, all supplied context and original IDs. Its Test sampling/last paragraph say 200 but table Total says 1000; the user explicitly selected 1000. Current settings are 300/150/1000; the overall size versus the original PDF cap remains provisional.
+- Root `preparation.hotpotqa_protocol_file` points to `hotpot_split.md`. Preparation and development preflight verify the configured instruction's content SHA-256 and permit its filename to change; all other provenance fields and data identities remain exact. Reusing prepared data returns the historical manifest unchanged. No legacy-name duplicate is needed. Old held-out batches retain their original source hashes and Windows paths; this rename does not bypass their controlled-migration requirements.
+- Rename verification on 2026-11-03: 258 tests and Ruff passed; actual stratified preparation reuse and development preflight passed without inference. All 25 original manifest/data files in `.cache/verification/pre-instruction-rename.json` retained their exact hashes, as did the instruction content. Experiments remain stopped.
 - C still needs the complete development failure inventory and diagnoses; B still needs the improved selector and focused ablation. Team method finalization precedes final held-out testing. B/C independently reproducing a small run from README has not yet been evidenced.
 - Experiment seeds `[0,42,127]` are fixed. HotpotQA v2 now has all 12 subruns completed, with three original evolution rounds per seed; old v1 remains interrupted. SearchQA's fixed data and prior single-seed result are unchanged. Root YAML comments record the seed set; `experiment.seed` remains the single-run integer with default 42.
 - For multi-seed execution, vary `experiment.seed`, not data-selection seeds or fixed IDs. Reuse the existing seed-42 batch only after verifying compatible model/data/protocol/method semantics; protocol changes require a fresh matched set. Run all A conditions at each seed; B's improvement/ablation should use the same seed list and budgets. Report every seed, means/sample standard deviations and paired differences; repeated use of 30 examples does not create 90 independent examples.

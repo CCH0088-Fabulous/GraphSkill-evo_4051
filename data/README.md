@@ -57,7 +57,7 @@ supporting facts must not be included as task evidence. Evaluation code is in
 
 ## Professor's stratified HotpotQA protocol
 
-The professor's root-level HotpotQA Markdown instruction permits constructing
+The professor's root-level [hotpot_split.md](../hotpot_split.md) permits constructing
 fixed splits from official distractor data. The user now specifies 300 training
 examples (100 per difficulty), 150 validation examples (50 per difficulty,
 excluding training IDs), and 1000 held-out examples from official dev, replacing
@@ -80,6 +80,11 @@ Existing outputs are verified instead of overwritten. The v1 stratified split
 with 200 test questions remains unchanged, as do the original unstratified
 100/30/50 split and its results. V2 retains the exact train/validation data;
 its 1000-question test set contains all 200 previous test IDs.
+
+Historical manifests retain the instruction's original filename. Preparation and
+development preflight verify the current configured instruction by its exact
+SHA-256, allowing a filename change without rewriting historical manifests or
+resampling IDs. Any content or other source-metadata change is still rejected.
 
 Experiment seeds 0, 42 and 127 share this one fixed split. Test records are reserved
 for evaluation after team method finalization; development experiments never send

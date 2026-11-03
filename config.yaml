@@ -65,7 +65,7 @@ preparation:
   hotpotqa_train_per_level: 100
   hotpotqa_val_per_level: 50
   hotpotqa_test_count: 1000
-  hotpotqa_protocol_file: AIAA_4051_Hotpot_QA_Data_in_Evolving_Graph-Structured_Skills_for_LLM_Agents_(1).md
+  hotpotqa_protocol_file: hotpot_split.md
   hotpotqa_ids_output: manifests/hotpotqa-stratified-v2/ids.json
   seed: 42
   train_count: 100

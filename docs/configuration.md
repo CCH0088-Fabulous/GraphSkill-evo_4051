@@ -78,6 +78,7 @@ GGUF 备用路线使用 `configs/local.gguf.yaml`，入口统一为 `scripts/ggu
 
 数据准备脚本读取 `preparation` 和对应 `*.course` 路径；`scripts/make_pilot_data.py` 读取 `preparation` 的 pilot 数量以及 `*.pilot` 路径。三者支持 `--config` 指向另一份包含相同方案的配置，准备脚本的显式参数优先于 YAML。
 `prepare_hotpotqa.py --stratified` 改用 `hotpotqa.provisional`，读取 `hotpotqa_train_per_level`、`hotpotqa_val_per_level`、`hotpotqa_test_count`、`hotpotqa_protocol_file` 和 `hotpotqa_ids_output`；只读本地固定 revision 缓存并验证下载收据。数据种子仍为 `preparation.seed`，不随实验种子变化。
+当前说明文件统一为根目录 `hotpot_split.md`。历史数据清单中的旧文件名保留；准备与开发预检按文件内容 SHA-256 验证身份，允许单纯重命名，不允许修改内容或其他来源字段。复用既有数据时不会重写清单。
 正式数据清单 `manifests/data-v1/` 保存已经固定的样本和来源校验值，不能仅通过修改 YAML 换一批数据。
 上游 Git 锁、Python 依赖锁、数据清单和 `.env` 凭据仍分别存放：这些文件供专门工具验证或只属于本机。
 

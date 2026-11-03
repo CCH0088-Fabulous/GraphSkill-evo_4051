@@ -6,10 +6,10 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from repro.artifacts.fingerprints import file_sha256
 from repro.config import load_config, resolve_path
 from repro.datasets.io import load_split
 from repro.datasets.manifests import verify_manifest, verify_manifest_reference
+from repro.datasets.protocol import verify_instruction
 from repro.experiments.formal import run_comparison_batch, validate_original_protocol
 
 _SIZES = {"train": 300, "val": 150, "test": 1000}
@@ -63,11 +63,7 @@ def load_provisional_config(
             raise ValueError(f"HotpotQA {split} difficulty counts differ from the stratified protocol")
     instruction = source.get("instruction", {})
     path = resolve_path(config["preparation"]["hotpotqa_protocol_file"])
-    if (
-        not instruction.get("path") or resolve_path(instruction["path"]) != path
-        or instruction.get("sha256") != file_sha256(path)
-    ):
-        raise ValueError("HotpotQA teacher instruction differs from the recorded protocol")
+    verify_instruction(instruction, path)
     validate_original_protocol(config)
     return config, source
 

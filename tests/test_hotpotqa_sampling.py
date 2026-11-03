@@ -122,6 +122,47 @@ def test_materialization_preserves_context_and_original_ids_without_overwriting(
         prepare_stratified_hotpotqa(output, ids_output=ids_path, **{**cached_source, "seed": 127})
 
 
+@pytest.mark.parametrize("changed_contents", [False, True])
+def test_cli_reuses_renamed_instruction_without_rewriting_frozen_files(
+    tmp_path, cached_source, monkeypatch, changed_contents,
+):
+    from scripts import prepare_hotpotqa as cli
+
+    output = tmp_path / "prepared"
+    archive = tmp_path / "submitted/hotpotqa.json"
+    ids_path = tmp_path / "submitted/ids.json"
+    original_instruction = cached_source["protocol_path"]
+    settings = {
+        "raw_cache_dir": str(cached_source["cache_dir"]), "hotpotqa_source": "official-public",
+        "hotpotqa_download_mode": "parquet", "hotpotqa_revision": cached_source["hf_revision"],
+        "hotpotqa_raw_train": None, "hotpotqa_raw_val": None, "hotpotqa_raw_test": None,
+        "train_count": 6, "val_count": 3, "test_count": 3, "seed": cached_source["seed"],
+        "hotpotqa_train_per_level": 2, "hotpotqa_val_per_level": 1, "hotpotqa_test_count": 3,
+        "hotpotqa_protocol_file": str(original_instruction), "hotpotqa_ids_output": str(ids_path),
+    }
+    config = {"preparation": settings, "data": {"split_dir": str(output), "manifest": str(archive)}}
+    monkeypatch.setattr(cli, "load_config", lambda *args, **kwargs: config)
+    monkeypatch.setattr("sys.argv", ["prepare_hotpotqa.py", "--stratified"])
+    cli.main()
+    frozen = {
+        path: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in [*output.iterdir(), archive, ids_path]
+    }
+    recorded_instruction = json.loads(archive.read_text(encoding="utf-8"))["source"]["instruction"]
+    renamed = original_instruction.with_name("hotpot_split.md")
+    original_instruction.rename(renamed)
+    settings["hotpotqa_protocol_file"] = str(renamed)
+    if changed_contents:
+        renamed.write_bytes(renamed.read_bytes() + b"\nChanged sampling counts")
+        with pytest.raises(FileExistsError, match="different sampling protocol"):
+            cli.main()
+    else:
+        cli.main()
+        existing = json.loads(archive.read_text(encoding="utf-8"))
+        assert existing["source"]["instruction"] == recorded_instruction
+    assert all((path.read_bytes(), path.stat().st_mtime_ns) == snapshot for path, snapshot in frozen.items())
+
+
 def test_corrupted_raw_cache_is_rejected_before_any_prepared_output(tmp_path, cached_source):
     source = next(cached_source["cache_dir"].rglob("train-*.parquet"))
     source.write_bytes(source.read_bytes() + b"corruption")
