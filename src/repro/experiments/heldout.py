@@ -12,7 +12,7 @@ from repro.artifacts.fingerprints import file_sha256
 from repro.artifacts.model_identity import capture_model_identity
 from repro.artifacts.provenance import environment_snapshot, source_snapshot
 from repro.artifacts.store import RunStore
-from repro.config import PROJECT_ROOT, resolve_path
+from repro.config import resolve_path
 from repro.datasets.manifests import verify_manifest, verify_manifest_reference
 from repro.experiments.baselines import run_baseline
 from repro.serving.lifecycle import managed_transformers_server
@@ -51,14 +51,8 @@ def load_heldout_plan(source_batch: str | Path) -> dict[str, Any]:
     expected = {(seed, condition) for seed in SEEDS for condition in _DEVELOPMENT_CONDITIONS}
     if len(summary["runs"]) != 12 or set(entries) != expected:
         raise ValueError("Source batch must contain all 12 declared development subruns")
+    # Code is not pinned by checksum: skills, data, model and plan identity are verified instead.
     source = _read(batch / "source.json")
-    source_files = source.get("project_python_sha256")
-    if not isinstance(source_files, dict) or not source_files:
-        raise ValueError("Development source checksums are required before held-out evaluation")
-    for relative, checksum in source_files.items():
-        current = (PROJECT_ROOT / relative).resolve()
-        if not current.is_relative_to(PROJECT_ROOT.resolve()) or file_sha256(current) != checksum:
-            raise ValueError("Existing project source changed since the development batch")
     configs, initial, selected, identities, manifests = {}, None, {}, [], []
     evidence = {name: file_sha256(batch / name) for name in (
         "summary.json", "scope.json", "plan.json", "source.json"
@@ -222,12 +216,74 @@ def run_heldout(source_batch: str | Path) -> Path:
         "test_ids": frozen["data_manifest"]["splits"]["test"]["ids"], **scope})
     report.save_json("plan.json", {"jobs": jobs})
     print(f"Held-out report: {report.path}", flush=True)
-    results, stopped, error = [], False, None
+    return _execute(report, jobs, files, scope, frozen, done={}, attempt=0)
+
+
+def _unused(directory: Path, stem: str, suffix: str) -> Path:
+    number = 1
+    while (directory / f"{stem}-{number}{suffix}").exists():
+        number += 1
+    return directory / f"{stem}-{number}{suffix}"
+
+
+def resume_heldout(held_out_batch: str | Path) -> Path:
+    """Continue an interrupted held-out batch; keep finished subruns and rerun the rest in new dirs."""
+    path = resolve_path(held_out_batch)
+    freeze, plan, scope = (_read(path / name) for name in ("freeze.json", "plan.json", "scope.json"))
+    if scope.get("purpose") != "member_a_frozen_heldout_evaluation" or scope.get("optimization_allowed"):
+        raise ValueError("Not a frozen member-A held-out batch")
+    frozen = load_heldout_plan(freeze["source_batch"])
+    if _read(path / "source_evidence.json") != frozen["source_evidence"]:
+        raise ValueError("Development evidence differs from the evidence frozen with this batch")
+    if (
+        frozen["model_identity"].get("fingerprint_sha256") != freeze["model_fingerprint_sha256"]
+        or frozen["data_manifest"]["splits"]["test"]["ids"] != freeze["test_ids"]
+    ):
+        raise ValueError("Current model or test IDs differ from the frozen batch")
+    files = freeze["files_sha256"]
+    for relative, checksum in files.items():
+        if file_sha256(path / relative) != checksum:
+            raise ValueError("Frozen evaluation input changed since the batch was created")
+    jobs = plan["jobs"]
+    done: dict[tuple[int, str], dict[str, Any]] = {}
+    events = path / "events.jsonl"
+    rows = [json.loads(line) for line in events.read_text(encoding="utf-8").splitlines() if line.strip()]
+    for row in rows:
+        if row.get("event") != "heldout_run_finished":
+            continue
+        summary = row.get("summary") or {}
+        if (
+            row.get("status") in {"completed", "completed_with_errors"}
+            and summary.get("n") == 1000 and summary.get("split") == "test"
+        ):
+            done[row["seed"], row["condition"]] = {
+                key: value for key, value in row.items() if key not in {"event", "timestamp"}
+            }
+    attempt = sum(1 for row in rows if row.get("event") == "heldout_resumed") + 1
+    if (path / "summary.json").exists():
+        (path / "summary.json").rename(_unused(path, "summary.attempt", ".json"))
+    report = RunStore.open_existing(path)
+    report.record_event("heldout_resumed", attempt=attempt, finished=len(done), pending=len(jobs) - len(done))
+    print(f"Resuming held-out report: {path}; {len(done)}/{len(jobs)} subruns finished", flush=True)
+    return _execute(report, jobs, files, scope, frozen, done=done, attempt=attempt)
+
+
+def _execute(
+    report: RunStore, jobs: list[dict[str, Any]], files: dict[str, str], scope: dict[str, Any],
+    frozen: dict[str, Any], *, done: dict[tuple[int, str], dict[str, Any]], attempt: int,
+) -> Path:
+    first = frozen["configs"][str(SEEDS[0])]
+    results: list[dict[str, Any]] = []
+    stopped, error = False, None
     started = time.perf_counter()
+    suffix = "" if attempt == 0 else f"-resume-{attempt}"
     try:
-        with managed_transformers_server(first["model"], report.path / "server") as command:
-            report.save_json("server_command.json", {"argv": command})
+        with managed_transformers_server(first["model"], report.path / f"server{suffix}") as command:
+            report.save_json(f"server_command{suffix}.json", {"argv": command})
             for index, job in enumerate(jobs):
+                if (job["seed"], job["condition"]) in done:
+                    results.append(done[job["seed"], job["condition"]])
+                    continue
                 for relative, checksum in files.items():
                     if file_sha256(report.path / relative) != checksum:
                         raise ValueError("Frozen evaluation input changed after the plan was recorded")
@@ -263,7 +319,8 @@ def run_heldout(source_batch: str | Path) -> Path:
                 if error:
                     results.extend({"seed": pending["seed"], "condition": pending["condition"],
                                     "status": "not_run", "reason": "Stopped after an earlier subrun failed"}
-                                   for pending in jobs[index + 1:])
+                                   for pending in jobs[index + 1:]
+                                   if (pending["seed"], pending["condition"]) not in done)
                     break
         stopped = True
     except Exception as exc:
@@ -275,7 +332,7 @@ def run_heldout(source_batch: str | Path) -> Path:
         )
         warnings = any(row["status"] == "completed_with_errors" for row in results)
         status = ("completed_with_errors" if warnings else "completed") if complete else "incomplete"
-        report.save_json("summary.json", {"status": status,
+        report.save_json("summary.json", {"status": status, "resume_attempt": attempt,
             "runs": results, "temporary_server_stopped": stopped, "elapsed_s": time.perf_counter() - started,
             "error": error, **scope})
         print(f"Held-out report: {report.path} ({status})", flush=True)

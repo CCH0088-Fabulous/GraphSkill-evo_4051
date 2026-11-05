@@ -4,7 +4,7 @@ import argparse
 import json
 
 from repro.experiments.formal import run_formal
-from repro.experiments.heldout import run_heldout
+from repro.experiments.heldout import resume_heldout, run_heldout
 from repro.experiments.provisional import run_provisional
 
 
@@ -13,6 +13,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config")
     parser.add_argument(
         "--test-from-batch", help="Evaluate all frozen A conditions from a completed development batch"
+    )
+    parser.add_argument(
+        "--resume-heldout", metavar="BATCH",
+        help="Continue an interrupted held-out batch directory; finished subruns are kept",
     )
     parser.add_argument("--set", action="append", default=[], metavar="SECTION.KEY=VALUE")
     parser.add_argument(
@@ -23,6 +27,15 @@ def main(argv: list[str] | None = None) -> int:
         "--seeds", nargs="+", type=int, help="Distinct experiment seeds for provisional HotpotQA",
     )
     args = parser.parse_args(argv)
+    if args.resume_heldout:
+        if (
+            args.test_from_batch or args.config or args.set
+            or args.seeds is not None or args.provisional_hotpotqa
+        ):
+            parser.error("--resume-heldout uses the frozen batch plan; no other options are accepted")
+        report = resume_heldout(args.resume_heldout)
+        summary = json.loads((report / "summary.json").read_text(encoding="utf-8"))
+        return 0 if summary["status"] == "completed" else 1
     if args.test_from_batch:
         if args.config or args.set or args.seeds is not None or args.provisional_hotpotqa:
             parser.error("--test-from-batch uses the frozen source plan; config/set/seeds are not accepted")

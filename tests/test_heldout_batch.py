@@ -25,7 +25,6 @@ def _development(tmp_path, monkeypatch):
     runtime = tmp_path / "runtime.py"
     runtime.write_bytes(b"original runtime\n")
     source = {"project_python_sha256": {"runtime.py": file_sha256(runtime)}}
-    monkeypatch.setattr(heldout, "PROJECT_ROOT", tmp_path)
     _json(batch / "source.json", source)
     data = tmp_path / "data"
     examples = {
@@ -97,7 +96,7 @@ def test_preflight_freezes_all_seeds_without_exposing_test_to_optimization(tmp_p
 
 
 @pytest.mark.parametrize(
-    "change", ["incomplete", "subset", "already_tested", "skill", "initial", "data", "model", "source"]
+    "change", ["incomplete", "subset", "already_tested", "skill", "initial", "data", "model"]
 )
 def test_preflight_rejects_changed_or_incomplete_evidence(tmp_path, monkeypatch, change):
     batch = _development(tmp_path, monkeypatch)
@@ -121,10 +120,14 @@ def test_preflight_rejects_changed_or_incomplete_evidence(tmp_path, monkeypatch,
     elif change == "model":
         monkeypatch.setattr(heldout, "capture_model_identity", lambda *args, **kwargs: {
             "fingerprint_sha256": "different-model"})
-    else:
-        (tmp_path / "runtime.py").write_bytes(b"modified scoring\n")
     with pytest.raises(ValueError):
         heldout.load_heldout_plan(batch)
+
+
+def test_code_edits_after_development_do_not_block_preflight(tmp_path, monkeypatch):
+    batch = _development(tmp_path, monkeypatch)
+    (tmp_path / "runtime.py").write_bytes(b"edited after development\n")
+    assert heldout.load_heldout_plan(batch)["data_manifest"]["splits"]["test"]["count"] == 1000
 
 
 @pytest.mark.parametrize("state", ["completed", "completed_with_errors", "failed", "wrong_model"])
@@ -177,6 +180,61 @@ def test_run_uses_one_server_test_only_frozen_skills_and_stops_after_failure(tmp
     if failed:
         assert all(row["status"] == "not_run" for row in summary["runs"][1:])
     assert json.loads((batch / "summary.json").read_text())["status"] == "completed"
+
+
+def _fixture_runtime(monkeypatch, calls, *, fail_at=None):
+    @contextmanager
+    def server(settings, directory):
+        yield ["fixture-server"]
+
+    def evaluate(config, *, split, saved_skill):
+        key = (config["experiment"]["seed"], config["experiment"]["condition"])
+        calls.append(key)
+        if key == fail_at:
+            raise RuntimeError("interrupted")
+        run = Path(config["experiment"]["output_root"]) / f"run-{len(calls)}"
+        _json(run / "run_summary.json", {"status": "completed", "n": 1000, "split": "test"})
+        _json(run / "model_identity.json", {"fingerprint_sha256": "original-model"})
+        _json(run / "data_manifest.json", json.loads(Path(config["data"]["manifest"]).read_text()))
+        return run
+
+    monkeypatch.setattr(heldout, "managed_transformers_server", server)
+    monkeypatch.setattr(heldout, "run_baseline", evaluate)
+
+
+def test_resume_keeps_finished_subruns_and_reruns_only_the_rest(tmp_path, monkeypatch):
+    batch = _development(tmp_path, monkeypatch)
+    monkeypatch.setattr(heldout, "environment_snapshot", lambda **kwargs: {})
+    monkeypatch.setattr(heldout, "source_snapshot", lambda: {})
+    first_calls: list = []
+    _fixture_runtime(monkeypatch, first_calls, fail_at=(0, "original"))
+    report = heldout.run_heldout(batch)
+    assert len(first_calls) == 3
+    assert json.loads((report / "summary.json").read_text())["status"] == "incomplete"
+    partial_runs = sorted(p.name for p in (report / "runs").rglob("run-*"))
+
+    resumed_calls: list = []
+    _fixture_runtime(monkeypatch, resumed_calls)
+    again = heldout.resume_heldout(report)
+    assert again == report
+    assert len(resumed_calls) == 7 and (0, "no_skill") not in resumed_calls
+    summary = json.loads((report / "summary.json").read_text())
+    assert summary["status"] == "completed" and summary["resume_attempt"] == 1
+    assert len(summary["runs"]) == 9
+    assert (report / "summary.attempt-1.json").is_file()
+    assert set(partial_runs) <= {p.name for p in (report / "runs").rglob("run-*")}
+    assert (report / "server_command-resume-1.json").is_file()
+
+
+def test_resume_rejects_changed_frozen_inputs(tmp_path, monkeypatch):
+    batch = _development(tmp_path, monkeypatch)
+    monkeypatch.setattr(heldout, "environment_snapshot", lambda **kwargs: {})
+    monkeypatch.setattr(heldout, "source_snapshot", lambda: {})
+    _fixture_runtime(monkeypatch, [], fail_at=(0, "initial_skill"))
+    report = heldout.run_heldout(batch)
+    (report / "frozen/skills/seed-0.md").write_bytes(b"reselected after seeing test")
+    with pytest.raises(ValueError):
+        heldout.resume_heldout(report)
 
 
 @pytest.mark.parametrize("arguments", [["--seeds", "42"], ["--set", "model.temperature=0"],

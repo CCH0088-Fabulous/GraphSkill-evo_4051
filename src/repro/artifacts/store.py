@@ -32,6 +32,19 @@ class RunStore:
         self._lock = threading.RLock()
         self._predictions: set[tuple[str, ...]] = set()
 
+    @classmethod
+    def open_existing(cls, path: str | Path) -> RunStore:
+        """Reopen a directory for further new artifacts; existing files are still never replaced."""
+        target = Path(path).resolve()
+        if not target.is_dir() or not _IDENTIFIER.fullmatch(target.name):
+            raise ValueError("Existing run directory required")
+        store = cls.__new__(cls)
+        store.run_id = target.name
+        store.path = target
+        store._lock = threading.RLock()
+        store._predictions = set()
+        return store
+
     def _target(self, relative: str | Path) -> Path:
         candidate = Path(relative)
         if candidate.is_absolute() or candidate.drive:
