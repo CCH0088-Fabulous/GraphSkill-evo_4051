@@ -2,21 +2,38 @@
 
 固定 Qwen3.5-9B，比较 SearchQA、HotpotQA 的无技能、初始技能和原始 GraphSkillEvo。两个数据集均已完成 seed 0、42、127 的开发与冻结测试，审计通过；B 的改进与消融尚未包含。
 
-当前环境为原生 Linux conda `jev`。SearchQA 固定 100/30/50；HotpotQA 按 [hotpot_split.md](hotpot_split.md) 使用 300/150/1000，测试取自官方 distractor dev。
+SearchQA 固定 100/30/50；HotpotQA 按 [hotpot_split.md](hotpot_split.md) 使用 300/150/1000，测试取自官方 distractor dev。
+
+## Linux 安装
+
+先准备 Conda、Git、NVIDIA 驱动及 CUDA 12.8 编译工具，详见 [系统准备](docs/environment.md#系统准备)。在仓库根目录依次执行：
+
+```bash
+conda create -n graphskill python=3.12 pip -y
+conda activate graphskill
+python -m pip install --upgrade pip
+python -m pip install -c requirements/lock.linux.txt setuptools wheel packaging ninja
+python -m pip install -c requirements/lock.linux.txt torch --index-url https://download.pytorch.org/whl/cu128
+python scripts/fetch_sources.py
+python -m pip install --no-build-isolation -r requirements.txt
+python -m pip check
+```
+
+`requirements.txt` 使用 Linux 依赖锁。先安装 PyTorch 再安装 CUDA 扩展；安装不会下载模型权重。已有独立环境可直接激活，名称不必为 `graphskill`。
 
 ## 模型与数据设置
 
 所有入口继承根 [config.yaml](config.yaml)。先按下表准备文件；相对路径均以**仓库根目录**为基准，换机器时只在该文件调整对应路径。
 
-| 用途 | `config.yaml` 配置项 | 默认路径 |
+| 用途 | `config.yaml` 配置项 | 设置为 |
 |---|---|---|
-| 完整 Qwen3.5-9B 模型 | `model.local_path` | `/home/admin1/Qwen3.5-9B` |
+| 完整 Qwen3.5-9B 模型 | `model.local_path` | 你本机完整模型目录的绝对路径 |
 | SearchQA 正式数据 | `presets.searchqa.course.data.split_dir` | `data/processed/searchqa` |
 | HotpotQA 当前正式数据 | `presets.hotpotqa.provisional.data.split_dir` | `data/processed/hotpotqa-stratified-v2` |
 | 两个小实验数据 | `presets.<数据集>.pilot.data.split_dir` | `data/pilot/searchqa`、`data/pilot/hotpotqa` |
 | HotpotQA 历史 pilot 来源 | `presets.hotpotqa.course.data.split_dir` | `data/processed/hotpotqa` |
 
-模型目录须含配置、tokenizer、权重索引及全部权重分片；仓库 `models/` 的早期非权重缓存不完整。其他机器修改 `model.local_path`（Windows 可用 `E:/Qwen3.5-9B`）。**非空的 `.env` / 环境变量 `REPRO_MODEL_PATH` 会覆盖 YAML**；想使用 YAML 时将其清空。项目不自动下载权重。**GGUF / `local.gguf` 已弃用（deprecated）**，仅保留历史兼容；新实验使用 Transformers。
+修改 `model.local_path` 指向含配置、tokenizer、权重索引及全部分片的完整目录；仓库 `models/` 的早期非权重缓存不完整。**非空的 `.env` / 环境变量 `REPRO_MODEL_PATH` 会覆盖 YAML**；想使用 YAML 时将其清空。**GGUF / `local.gguf` 已弃用（deprecated）**，新实验使用 Transformers。
 
 数据不随 Git 提供：向 A 复制完整的 `data/processed/` 和 `data/pilot/`，保留各目录的 `train.jsonl`、`val.jsonl`、`test.jsonl`、`split_manifest.json`，并与仓库 `manifests/` 配套。`preparation.raw_cache_dir=data/raw` 仅是原始数据缓存，不能用作 `split_dir`。移动目录只改相应 `split_dir`，不改固定 ID、来源或清单。
 
@@ -39,10 +56,10 @@ EM/F1 为三个种子的百分比均值 ± 样本标准差。各数据集重复�
 
 ## B C 独立复现验收
 
-B、C 各自从仓库根目录执行一次，单 GPU 上依次运行。已有环境直接激活；新机器安装及模型路径设置见 [环境说明](docs/environment.md)。
+B、C 完成上述安装和路径设置后，各自从仓库根目录执行一次；单 GPU 上依次运行。
 
 ```bash
-conda activate jev
+conda activate graphskill
 python -m pip check
 python -m repro show-config --config configs/searchqa.pilot.yaml
 python -m repro doctor --config configs/searchqa.pilot.yaml
@@ -66,7 +83,7 @@ python -m repro summarize --run "本次 selected_val 子运行的实际目录"
 ## 文档入口
 
 - [成员 A 初稿与演示](docs/member-a-report.md)：设置、实现、结果、限制、技能图及演示讲稿。
-- [环境与模型服务](docs/environment.md)：Linux `jev`、Windows 备用安装和服务生命周期。
+- [Linux 配置指南](docs/environment.md)：系统依赖、环境安装、模型与数据准备、服务管理及排错。
 - [实验与交接](docs/reproduction-plan.md)：正式入口、当前批次、B/C 分工及固定证据。
 - [配置](docs/configuration.md)、[实验协议](docs/experiment-protocol.md)、[模块职责](docs/architecture.md)。
 - [课程要求](nlp-project5.pdf)、[小组分工](group_div.md)、[HotpotQA 划分说明](hotpot_split.md)。

@@ -11,7 +11,7 @@ manifests/** -text
 manifests/README.md text eol=lf
 **/split_manifest.json -text
 *.lock.json -text
-requirements/lock.windows.txt -text
+requirements/archive/** -text
 
 # Binary attachments must not undergo newline conversion.
 *.pdf -text

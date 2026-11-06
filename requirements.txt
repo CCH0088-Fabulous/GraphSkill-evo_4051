@@ -1,5 +1,7 @@
-# Native Windows / Python 3.13 installation entry point.
-# First restore pinned sources: python scripts/fetch_sources.py
--r requirements/lock.windows.txt
+# Linux x86_64 / Python 3.12 / CUDA 12.8 installation entry point.
+# Install PyTorch and build prerequisites first; see docs/environment.md.
+# Then: python -m pip install --no-build-isolation -r requirements.txt
+--extra-index-url https://download.pytorch.org/whl/cu128
+-r requirements/lock.linux.txt
 -e .[data,dev,server]
 -e ./third_party/GraphSkillEvo

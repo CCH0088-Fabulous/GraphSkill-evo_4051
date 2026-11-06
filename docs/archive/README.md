@@ -4,6 +4,7 @@
 
 - [首次双数据集 pilot](pilot-results.md)：2026-10-30 的一轮试跑。
 - [v1 资格验收](frozen-settings-v1.md)：两轮验收及当时的截断、重试约定。
+- [旧 Windows 依赖锁](../../requirements/archive/lock.windows.txt)：原字节保留供历史清单核对，不参与 Linux 安装；旧清单中的原路径不改写。
 
 v1 原始清单仍保存在 `manifests/experiment-v1/`，不再强制锁定组员的路径或环境。固定数据 ID、来源 revision、原始数据校验值和分区边界仍在运行前验证。
 

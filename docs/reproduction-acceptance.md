@@ -4,10 +4,10 @@
 
 ## 执行步骤
 
-在已有 Linux `jev` 环境、完整本地模型和准备好的数据上，从仓库根目录执行。先按 [README 路径表](../README.md#模型与数据设置) 设置 `config.yaml` 并复制两个 pilot；新机器的依赖与数据准备见 [环境说明](environment.md)。
+先按 [Linux 配置指南](environment.md) 创建并激活环境，再按 [README 路径表](../README.md#模型与数据设置) 设置 `config.yaml` 并复制两个 pilot。以下使用示例环境名 `graphskill`，可换成自己创建的名称；从仓库根目录执行。
 
 ```bash
-conda activate jev
+conda activate graphskill
 python -m pip check
 python -m repro show-config --config configs/searchqa.pilot.yaml
 python -m repro doctor --config configs/searchqa.pilot.yaml
