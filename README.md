@@ -1,8 +1,21 @@
 # GraphSkillEvo 课程复现
 
-使用固定 Qwen3.5-9B，在 SearchQA 和 HotpotQA 上运行无技能、初始技能和原始 GraphSkillEvo。当前已完成 HotpotQA v2 三种子开发集对照，12/12 子运行成功；留出测试、改进选择器和消融尚未完成。
+使用固定 Qwen3.5-9B，在 SearchQA 和 HotpotQA 上运行无技能、初始技能和原始 GraphSkillEvo。SearchQA 已在 Linux conda `jev` 完成三种子开发与留出测试：12/12开发子运行、9/9测试子运行成功。B的改进选择器和消融尚未包含。
 
-HotpotQA 固定为 **300 train / 150 val / 1000 test**，训练每难度100、验证每难度50。下表为相同150条验证题上 seed 0、42、127 的百分比均值 ± 样本标准差；验证集参与技能选择，不能当作留出测试成绩。
+SearchQA 保持PDF规定的 **100 train / 30 val / 50 test**，实验种子为0、42、127。下表为固定50题测试集上的三种子均值 ± 样本标准差，EM/F1单位为百分比，延迟为平均每题秒数：
+
+| 条件 | 测试EM | 测试F1 | 每题延迟(s) |
+|---|---:|---:|---:|
+| 无技能 | 64.67 ± 1.15 | 71.88 ± 1.53 | 1.82 |
+| 初始技能 | 62.67 ± 1.15 | 70.63 ± 0.99 | 4.18 |
+| 原方法选定技能 | 63.33 ± 1.15 | 69.73 ± 0.70 | 3.55 |
+
+原方法选定技能相对无技能平均EM -1.33、F1 -2.15个百分点；相对初始技能EM +0.67、F1 -0.91。
+只有seed0选中第1轮变异技能，seed42和127均保留初始技能；本轮未显示出优于无技能的留出测试表现。
+同一50题在三个种子间重复使用，不是150道独立测试题。完整结果见[审计与汇总](outputs/reports/searchqa-linux/20261106T074952Z/audit-results.json)和[逐种子数据](outputs/reports/searchqa-linux/20261106T074952Z/per-seed.csv)。
+开发及测试合计1716次调用，约70分钟墙钟；逐题指标、预算、固定身份及原始文件校验均通过，测试3条截断输出按原规则计零分。
+
+HotpotQA 固定为 **300 train / 150 val / 1000 test**，训练每难度100、验证每难度50。以下表格保留历史Windows开发批次的结果：相同150条验证题上 seed 0、42、127 的百分比均值 ± 样本标准差；验证集参与技能选择，不能当作留出测试成绩。后续Linux开发及已完成测试的状态见 `MEMORY.md`，不与此表混合。
 
 | 条件 | EM | F1 |
 |---|---:|---:|
@@ -10,7 +23,7 @@ HotpotQA 固定为 **300 train / 150 val / 1000 test**，训练每难度100、�
 | 初始技能 | 68.00 ± 1.33 | 78.88 ± 1.73 |
 | 进化选定技能 | 70.89 ± 1.02 | 82.36 ± 1.39 |
 
-进化相对初始技能平均 EM +2.89、F1 +3.47 个百分点；相对无技能仅 +1.11、+1.59。方法流程和开发基线已完成，完整效果结论仍需测试集与团队后续实验。各种子成绩、成本、核验和限制见 [HotpotQA v2 结果](docs/hotpotqa-v2-results.md)。
+该历史开发批次的进化相对初始技能平均 EM +2.89、F1 +3.47 个百分点；相对无技能仅 +1.11、+1.59。各种子开发成绩、成本、核验和限制见 [HotpotQA v2 结果](docs/hotpotqa-v2-results.md)。
 
 SearchQA 的旧 seed42 开发集结果为无技能50.00/64.33、初始及进化后66.67/72.52（EM/F1）；旧 HotpotQA 未分层结果另行保留，不混入新比较，见 [旧批次报告](docs/formal-results.md)。课程要求见 [PDF](nlp-project5.pdf)，团队分工见 [group_div.md](group_div.md)。
 
@@ -18,9 +31,17 @@ SearchQA 的旧 seed42 开发集结果为无技能50.00/64.33、初始及进化�
 
 ## 安装与配置
 
-默认使用原生 Windows、已提供的完整本地模型和 CUDA / BF16。已有 32GB 显存环境完成验证，BF16 / SDPA / `cuda:0` 为当前 Transformers 服务的实现设置。
+当前运行环境为原生 Linux、conda `jev`（Python 3.12、RTX 5090），使用已有完整本地模型和 CUDA / BF16。BF16 / SDPA / `cuda:0` 为当前 Transformers 服务的实现设置。
 
-先激活自己的 Python 环境（已验证 Python 3.13.11），在仓库根目录执行：
+已有环境直接激活并核验；Linux依赖快照见 `requirements/lock.linux.txt`：
+
+```bash
+conda activate jev
+python -m pip check
+python -m repro doctor --config configs/searchqa.course.yaml
+```
+
+原生Windows仍保留支持。Windows环境安装入口为 `requirements.txt`（Python 3.13.11已验证），在仓库根目录执行：
 
 ```powershell
 python scripts/fetch_sources.py
@@ -28,7 +49,7 @@ python -m pip install -r requirements.txt
 python -m pip check
 ```
 
-安装使用固定依赖和上游源码，不下载模型权重。将完整模型目录写入 [config.yaml](config.yaml) 的 `model.local_path`；当前机器使用 `E:/Qwen3.5-9B`。
+安装使用固定依赖和上游源码，不下载模型权重。完整模型目录可由 [config.yaml](config.yaml) 的 `model.local_path` 或不提交的 `.env` 中 `REPRO_MODEL_PATH` 指定；当前Linux使用 `/home/admin1/Qwen3.5-9B`，共享YAML保留Windows路径供其他机器覆盖。
 
 根配置集中管理模型、服务地址、解码、数据准备和实验方案。`configs/` 中的文件只选择方案；也可以直接使用根配置：
 
@@ -121,7 +142,26 @@ python -m repro evaluate --config configs/searchqa.course.yaml --condition origi
 python scripts/run_formal.py --test-from-batch outputs/provisional-hotpotqa/20261102T050827834273Z-ae48d3
 ```
 
-该入口冻结初始技能、三个选定技能、模型指纹、数据文件及全部1000个测试ID，再串行评估三个种子 × 三条件，共九组。测试模式禁止额外配置、种子或参数覆盖；只在局部派生配置中开启测试，根配置仍默认关闭。测试结果、逐题失败及样例不得反馈给进化、选择器设计、提示词或调参。B 的改进和消融不包含在本次 A 测试中。
+SearchQA 可以在当前环境独立运行三个种子的课程规模开发实验，不会顺带重跑 HotpotQA：
+
+```bash
+conda activate jev
+python scripts/run_formal.py --dataset searchqa --seeds 0 42 127 --set experiment.output_root=outputs/linux-transformers
+```
+
+每个种子运行无技能、初始技能、三轮原方法，以及选定技能的重复验证，共12个开发子运行，始终关闭测试推理。
+SearchQA 保持固定100/30/50划分、每轮最多两个新候选及每条件600次调用/200万输出token预算。
+全部开发子运行完成后，用打印的本次批次目录执行：
+
+```bash
+python scripts/run_formal.py --test-from-batch outputs/linux-transformers/formal/<本次SearchQA开发批次>
+```
+
+入口从完成的单数据集三种子计划自动识别 SearchQA，冻结各自选定技能与固定数据，在新的 `heldout-searchqa/` 中运行九组、每组50题。
+测试模式禁止配置、数据集、种子或参数覆盖，不能根据测试表现重新选择技能。相同入口继续支持原有HotpotQA分层批次。
+当前Linux执行环境是conda `jev`；使用已有本地权重，启动和运行不下载模型。
+
+两种数据集的入口均冻结初始技能、三个选定技能、模型指纹、数据文件及全部固定测试ID（SearchQA 50题、分层HotpotQA 1000题），再串行评估三个种子 × 三条件，共九组。测试模式禁止额外配置、种子或参数覆盖；只在局部派生配置中开启测试，根配置仍默认关闭。测试结果、逐题失败及样例不得反馈给进化、选择器设计、提示词或调参。B 的改进和消融不包含在本次 A 测试中。
 
 测试批次被中断后可续跑：
 
@@ -129,7 +169,7 @@ python scripts/run_formal.py --test-from-batch outputs/provisional-hotpotqa/2026
 python scripts/run_formal.py --resume-heldout outputs/.../heldout-hotpotqa/<批次目录>
 ```
 
-续跑先核对该批次冻结的技能、数据、1000 个测试 ID、开发证据和模型指纹，保留已完成的子运行，只重跑其余子运行；被中断的子运行保留为部分结果，重跑写入新目录，不覆盖，其未知用量保持未知。旧的 `summary.json` 会改名为 `summary.attempt-N.json`。该入口不接受其他参数。留出测试不再校验项目 Python 源码的逐字节哈希，改以冻结的技能、数据和模型身份为准；续跑前请确认没有仍在运行的同批次进程。
+续跑先核对该批次冻结的技能、数据、全部固定测试 ID、开发证据和模型指纹，保留已完成的子运行，只重跑其余子运行；SearchQA 使用对应的 `heldout-searchqa/` 批次路径。被中断的子运行保留为部分结果，重跑写入新目录，不覆盖，其未知用量保持未知。旧的 `summary.json` 会改名为 `summary.attempt-N.json`。该入口不接受其他参数。留出测试不再校验项目 Python 源码的逐字节哈希，改以冻结的技能、数据和模型身份为准；续跑前请确认没有仍在运行的同批次进程。
 
 ## GGUF 备用路线
 

@@ -21,7 +21,7 @@ def test_formal_batch_uses_snapshot_and_skips_selection_after_failure(tmp_path, 
         config["experiment"]["output_root"] = str(tmp_path)
     originals = deepcopy(configs)
     calls = []
-    monkeypatch.setattr(formal, "load_formal_configs", lambda path, overrides: configs)
+    monkeypatch.setattr(formal, "load_formal_configs", lambda path, overrides, **kwargs: configs)
     monkeypatch.setattr(formal, "environment_snapshot", lambda **kwargs: {})
     monkeypatch.setattr(formal, "source_snapshot", lambda: {})
 
@@ -67,3 +67,54 @@ def test_formal_preflight_rejects_test_enabled_before_starting_server(monkeypatc
     monkeypatch.setattr(formal, "load_config", lambda *args, **kwargs: deepcopy(config))
     with pytest.raises(ValueError, match="test disabled"):
         formal.load_formal_configs("config.yaml")
+
+
+@pytest.mark.parametrize("invalid", [None, "test_enabled", "wrong_size"])
+def test_searchqa_only_preflight_preserves_course_sizes_and_test_boundary(monkeypatch, invalid):
+    config = load_config("config.yaml", presets=["course", "searchqa.course"])
+    manifest = {"dataset": "searchqa", "synthetic": False,
+                "splits": {name: {"count": n} for name, n in (("train", 100), ("val", 30), ("test", 50))}}
+    if invalid == "test_enabled":
+        config["experiment"]["allow_test"] = True
+    if invalid == "wrong_size":
+        manifest["splits"]["test"]["count"] = 1000
+    requested = []
+
+    def configuration(path, overrides, *, presets):
+        requested.append(presets)
+        return deepcopy(config)
+
+    monkeypatch.setattr(formal, "load_config", configuration)
+    monkeypatch.setattr(formal, "verify_manifest", lambda *args: manifest)
+    monkeypatch.setattr(formal, "verify_manifest_reference", lambda *args: None)
+    if invalid:
+        with pytest.raises(ValueError):
+            formal.load_formal_configs("config.yaml", datasets=("searchqa",))
+    else:
+        assert formal.load_formal_configs("config.yaml", datasets=("searchqa",)) == {"searchqa": config}
+    assert requested == [["course", "searchqa.course"]]
+
+
+def test_searchqa_cli_dispatches_requested_seeds_without_hotpotqa(tmp_path, monkeypatch):
+    from scripts import run_formal
+
+    report = tmp_path / "report"
+    report.mkdir()
+    (report / "summary.json").write_text(json.dumps({"status": "completed"}))
+    captured = []
+
+    def run(path, overrides, *, datasets, seeds):
+        captured.append((path, overrides, datasets, seeds))
+        return report
+
+    monkeypatch.setattr(run_formal, "run_formal", run)
+    assert run_formal.main(["--dataset", "searchqa", "--seeds", "0", "42", "127"]) == 0
+    assert captured == [("config.yaml", [], ("searchqa",), [0, 42, 127])]
+
+
+def test_searchqa_cli_rejects_mixed_protocols():
+    from scripts import run_formal
+
+    with pytest.raises(SystemExit) as exc:
+        run_formal.main(["--dataset", "searchqa", "--provisional-hotpotqa"])
+    assert exc.value.code == 2

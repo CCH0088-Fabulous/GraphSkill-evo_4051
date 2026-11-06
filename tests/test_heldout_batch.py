@@ -19,7 +19,7 @@ def _json(path, value):
     path.write_text(json.dumps(value), encoding="utf-8")
 
 
-def _development(tmp_path, monkeypatch):
+def _development(tmp_path, monkeypatch, dataset="hotpotqa"):
     batch = tmp_path / "development"
     batch.mkdir()
     runtime = tmp_path / "runtime.py"
@@ -27,32 +27,34 @@ def _development(tmp_path, monkeypatch):
     source = {"project_python_sha256": {"runtime.py": file_sha256(runtime)}}
     _json(batch / "source.json", source)
     data = tmp_path / "data"
+    sizes = heldout._DATASET_SIZES[dataset]
     examples = {
-        split: [QAExample(f"{split}-{i}", "hotpotqa", split, "q", "c", ("a",)) for i in range(count)]
-        for split, count in (("train", 300), ("val", 150), ("test", 1000))
+        split: [QAExample(f"{split}-{i}", dataset, split, "q", "c", ("a",)) for i in range(count)]
+        for split, count in sizes.items()
     }
-    manifest = freeze_splits("hotpotqa", examples, data, heldout._SIZES, course_limits=False)
+    manifest = freeze_splits(dataset, examples, data, sizes, course_limits=False)
     reference = tmp_path / "reference.json"
     reference.write_bytes((data / "split_manifest.json").read_bytes())
     identity = {"fingerprint_sha256": "original-model", "precision": "bfloat16",
                 "attention_implementation": "sdpa", "device": "cuda:0"}
     monkeypatch.setattr(heldout, "capture_model_identity", lambda *args, **kwargs: deepcopy(identity))
-    base = load_config("config.yaml", presets=["course", "hotpotqa.provisional"])
+    preset = "hotpotqa.provisional" if dataset == "hotpotqa" else "searchqa.course"
+    base = load_config("config.yaml", presets=["course", preset])
     base["data"].update(split_dir=str(data), manifest=str(reference))
     base["experiment"].update(output_root=str(tmp_path / "outputs"))
     plans, results = {}, []
     for seed in heldout.SEEDS:
         cfg = deepcopy(base)
         cfg["experiment"]["seed"] = seed
-        plans[str(seed)] = {"hotpotqa": cfg}
+        plans[str(seed)] = {dataset: cfg}
         for condition in (*heldout.CONDITIONS, "selected_val"):
-            run = batch / "runs" / f"seed-{seed}" / "hotpotqa" / condition / "run"
+            run = batch / "runs" / f"seed-{seed}" / dataset / condition / "run"
             actual = deepcopy(cfg)
             actual["experiment"].update(
                 condition="original" if condition == "selected_val" else condition,
                 output_root=str(run.parent),
             )
-            saved = {"status": "completed", "n": 150, "split": "val", "em": 0.7, "f1": 0.8}
+            saved = {"status": "completed", "n": sizes["val"], "split": "val", "em": 0.7, "f1": 0.8}
             if condition == "original":
                 saved["best"] = {"id": "g0001_i0000", "val_hard": 0.7, "val_soft": 0.8}
             for name, content in (("config.json", actual), ("run_summary.json", saved),
@@ -69,7 +71,7 @@ def _development(tmp_path, monkeypatch):
                 skill = run / "upstream/best_skill.md"
                 skill.parent.mkdir()
                 skill.write_bytes(f"selected skill {seed}\r\n".encode())
-                _json(batch / f"selection/seed-{seed}/hotpotqa.json", {
+                _json(batch / f"selection/seed-{seed}/{dataset}.json", {
                     "path": str(skill), "sha256": file_sha256(skill), "selection_split": "val",
                     "test_examples_used": False,
                 })
@@ -86,11 +88,12 @@ def _development(tmp_path, monkeypatch):
     return batch
 
 
-def test_preflight_freezes_all_seeds_without_exposing_test_to_optimization(tmp_path, monkeypatch):
-    batch = _development(tmp_path, monkeypatch)
+@pytest.mark.parametrize("dataset", ["hotpotqa", "searchqa"])
+def test_preflight_freezes_all_seeds_without_exposing_test_to_optimization(tmp_path, monkeypatch, dataset):
+    batch = _development(tmp_path, monkeypatch, dataset)
     plan = heldout.load_heldout_plan(batch)
     assert tuple(map(int, plan["configs"])) == heldout.SEEDS
-    assert plan["data_manifest"]["splits"]["test"]["count"] == 1000
+    assert plan["data_manifest"]["splits"]["test"]["count"] == heldout._DATASET_SIZES[dataset]["test"]
     assert not any(cfg["experiment"]["allow_test"] for cfg in plan["configs"].values())
     assert plan["selected"]["0"]["content"] == b"selected skill 0\r\n"
 
@@ -98,8 +101,9 @@ def test_preflight_freezes_all_seeds_without_exposing_test_to_optimization(tmp_p
 @pytest.mark.parametrize(
     "change", ["incomplete", "subset", "already_tested", "skill", "initial", "data", "model"]
 )
-def test_preflight_rejects_changed_or_incomplete_evidence(tmp_path, monkeypatch, change):
-    batch = _development(tmp_path, monkeypatch)
+@pytest.mark.parametrize("dataset", ["hotpotqa", "searchqa"])
+def test_preflight_rejects_changed_or_incomplete_evidence(tmp_path, monkeypatch, change, dataset):
+    batch = _development(tmp_path, monkeypatch, dataset)
     summary = json.loads((batch / "summary.json").read_text())
     if change == "incomplete":
         summary["status"] = "incomplete"
@@ -110,10 +114,10 @@ def test_preflight_rejects_changed_or_incomplete_evidence(tmp_path, monkeypatch,
     elif change == "already_tested":
         _json(batch / "scope.json", {"split": "test", "test_examples_sent_to_model": True})
     elif change == "skill":
-        skill = batch / "runs/seed-0/hotpotqa/original/run/upstream/best_skill.md"
+        skill = batch / f"runs/seed-0/{dataset}/original/run/upstream/best_skill.md"
         skill.write_bytes(b"reselected after test")
     elif change == "initial":
-        (batch / "runs/seed-0/hotpotqa/initial_skill/run/skills/evaluated.md").write_bytes(b"new initial")
+        (batch / f"runs/seed-0/{dataset}/initial_skill/run/skills/evaluated.md").write_bytes(b"new initial")
     elif change == "data":
         with (tmp_path / "data/test.jsonl").open("a", encoding="utf-8") as stream:
             stream.write("\n")
@@ -131,8 +135,11 @@ def test_code_edits_after_development_do_not_block_preflight(tmp_path, monkeypat
 
 
 @pytest.mark.parametrize("state", ["completed", "completed_with_errors", "failed", "wrong_model"])
-def test_run_uses_one_server_test_only_frozen_skills_and_stops_after_failure(tmp_path, monkeypatch, state):
-    batch = _development(tmp_path, monkeypatch)
+@pytest.mark.parametrize("dataset", ["hotpotqa", "searchqa"])
+def test_run_uses_one_server_test_only_frozen_skills_and_stops_after_failure(
+    tmp_path, monkeypatch, state, dataset,
+):
+    batch = _development(tmp_path, monkeypatch, dataset)
     monkeypatch.setattr(heldout, "environment_snapshot", lambda **kwargs: {})
     monkeypatch.setattr(heldout, "source_snapshot", lambda: {})
     server_calls, calls = [], []
@@ -159,7 +166,7 @@ def test_run_uses_one_server_test_only_frozen_skills_and_stops_after_failure(tmp
             raise RuntimeError("fixture failure")
         run = Path(config["experiment"]["output_root"]) / "result"
         _json(run / "run_summary.json", {"status": state if state == "completed_with_errors" else "completed",
-                                         "n": 1000, "split": "test"})
+                                         "n": heldout._DATASET_SIZES[dataset]["test"], "split": "test"})
         identity = {"fingerprint_sha256": "wrong" if state == "wrong_model" else "original-model"}
         _json(run / "model_identity.json", identity)
         _json(run / "data_manifest.json", json.loads(Path(config["data"]["manifest"]).read_text()))
@@ -177,6 +184,8 @@ def test_run_uses_one_server_test_only_frozen_skills_and_stops_after_failure(tmp
     assert summary["test_feedback_to_method_development_allowed"] is False
     assert not summary["member_b_improved_and_ablation_included"]
     assert len(summary["runs"]) == 9
+    assert summary["dataset"] == dataset
+    assert summary["n_per_run"] == heldout._DATASET_SIZES[dataset]["test"]
     if failed:
         assert all(row["status"] == "not_run" for row in summary["runs"][1:])
     assert json.loads((batch / "summary.json").read_text())["status"] == "completed"
@@ -193,7 +202,9 @@ def _fixture_runtime(monkeypatch, calls, *, fail_at=None):
         if key == fail_at:
             raise RuntimeError("interrupted")
         run = Path(config["experiment"]["output_root"]) / f"run-{len(calls)}"
-        _json(run / "run_summary.json", {"status": "completed", "n": 1000, "split": "test"})
+        manifest = json.loads(Path(config["data"]["manifest"]).read_text())
+        _json(run / "run_summary.json", {"status": "completed",
+                                         "n": manifest["splits"]["test"]["count"], "split": "test"})
         _json(run / "model_identity.json", {"fingerprint_sha256": "original-model"})
         _json(run / "data_manifest.json", json.loads(Path(config["data"]["manifest"]).read_text()))
         return run
@@ -202,8 +213,9 @@ def _fixture_runtime(monkeypatch, calls, *, fail_at=None):
     monkeypatch.setattr(heldout, "run_baseline", evaluate)
 
 
-def test_resume_keeps_finished_subruns_and_reruns_only_the_rest(tmp_path, monkeypatch):
-    batch = _development(tmp_path, monkeypatch)
+@pytest.mark.parametrize("dataset", ["hotpotqa", "searchqa"])
+def test_resume_keeps_finished_subruns_and_reruns_only_the_rest(tmp_path, monkeypatch, dataset):
+    batch = _development(tmp_path, monkeypatch, dataset)
     monkeypatch.setattr(heldout, "environment_snapshot", lambda **kwargs: {})
     monkeypatch.setattr(heldout, "source_snapshot", lambda: {})
     first_calls: list = []
@@ -238,7 +250,8 @@ def test_resume_rejects_changed_frozen_inputs(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("arguments", [["--seeds", "42"], ["--set", "model.temperature=0"],
-                                       ["--config", "other.yaml"], ["--provisional-hotpotqa"]])
+                                       ["--config", "other.yaml"], ["--provisional-hotpotqa"],
+                                       ["--dataset", "searchqa"]])
 def test_test_cli_rejects_reconfiguration_or_seed_selection(arguments):
     from scripts.run_formal import main
 

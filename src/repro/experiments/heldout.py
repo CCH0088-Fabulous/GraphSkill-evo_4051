@@ -1,4 +1,4 @@
-"""Evaluate the three frozen member-A conditions on the untouched HotpotQA test split."""
+"""Evaluate three frozen member-A conditions on a fixed SearchQA or HotpotQA test split."""
 
 from __future__ import annotations
 
@@ -21,6 +21,7 @@ SEEDS = (0, 42, 127)
 CONDITIONS = ("no_skill", "initial_skill", "original")
 _DEVELOPMENT_CONDITIONS = (*CONDITIONS, "selected_val")
 _SIZES = {"train": 300, "val": 150, "test": 1000}
+_DATASET_SIZES = {"searchqa": {"train": 100, "val": 30, "test": 50}, "hotpotqa": _SIZES}
 
 
 def _read(path: Path) -> Any:
@@ -31,9 +32,9 @@ def _text(content: bytes) -> str:
     return content.decode("utf-8").replace("\r\n", "\n")
 
 
-def _run_path(batch: Path, entry: dict[str, Any]) -> Path:
+def _run_path(batch: Path, entry: dict[str, Any], dataset: str) -> Path:
     name = Path(entry["path"].replace("\\", "/")).name
-    return batch / "runs" / f"seed-{entry['seed']}" / "hotpotqa" / entry["condition"] / name
+    return batch / "runs" / f"seed-{entry['seed']}" / dataset / entry["condition"] / name
 
 
 def load_heldout_plan(source_batch: str | Path) -> dict[str, Any]:
@@ -47,6 +48,11 @@ def load_heldout_plan(source_batch: str | Path) -> dict[str, Any]:
         or scope.get("split") != "val" or scope.get("test_examples_sent_to_model") is not False
     ):
         raise ValueError("Held-out evaluation requires the completed validation-only three-seed batch")
+    datasets = set(plan["configs_by_seed"][str(SEEDS[0])])
+    if len(datasets) != 1 or not datasets <= _DATASET_SIZES.keys():
+        raise ValueError("Held-out evaluation requires one supported dataset per source batch")
+    dataset = next(iter(datasets))
+    sizes = _DATASET_SIZES[dataset]
     entries = {(row["seed"], row["condition"]): row for row in summary["runs"]}
     expected = {(seed, condition) for seed in SEEDS for condition in _DEVELOPMENT_CONDITIONS}
     if len(summary["runs"]) != 12 or set(entries) != expected:
@@ -58,18 +64,22 @@ def load_heldout_plan(source_batch: str | Path) -> dict[str, Any]:
         "summary.json", "scope.json", "plan.json", "source.json"
     )}
     for seed in SEEDS:
-        config = deepcopy(plan["configs_by_seed"][str(seed)]["hotpotqa"])
+        if set(plan["configs_by_seed"][str(seed)]) != datasets:
+            raise ValueError("All source seeds must use the same single dataset")
+        config = deepcopy(plan["configs_by_seed"][str(seed)][dataset])
         if (
-            config["data"]["dataset"] != "hotpotqa" or config["model"]["backend"] != "transformers"
+            config["data"]["dataset"] != dataset or config["model"]["backend"] != "transformers"
             or config["experiment"]["allow_test"] or config["experiment"]["seed"] != seed
             or not config["data"].get("manifest")
         ):
-            raise ValueError("Source configuration must use real HotpotQA with test disabled")
+            raise ValueError("Source configuration must use the declared real dataset with test disabled")
         configs[str(seed)] = config
         run_dirs = {}
         for condition in _DEVELOPMENT_CONDITIONS:
             entry = entries[seed, condition]
-            run = _run_path(batch, entry)
+            if entry.get("dataset", dataset) != dataset:
+                raise ValueError("Development entry dataset differs from its frozen plan")
+            run = _run_path(batch, entry, dataset)
             run_dirs[condition] = run
             saved = _read(run / "run_summary.json")
             if entry["status"] != "completed" or saved["status"] != "completed" or saved != entry["summary"]:
@@ -90,7 +100,7 @@ def load_heldout_plan(source_batch: str | Path) -> dict[str, Any]:
                 evidence[(run / name).relative_to(batch).as_posix()] = file_sha256(run / name)
         original = _read(run_dirs["original"] / "run_summary.json")
         repeated = _read(run_dirs["selected_val"] / "run_summary.json")
-        if repeated.get("split") != "val" or repeated.get("n") != 150:
+        if repeated.get("split") != "val" or repeated.get("n") != sizes["val"]:
             raise ValueError("Selected skill must have a complete validation-only acceptance run")
         if repeated["em"] != original["best"]["val_hard"] or repeated["f1"] != original["best"]["val_soft"]:
             raise ValueError("Repeated validation does not match the automatically selected skill")
@@ -107,7 +117,7 @@ def load_heldout_plan(source_batch: str | Path) -> dict[str, Any]:
                        "source": initial_path.relative_to(batch).as_posix()}
         elif content != initial["content"]:
             raise ValueError("Initial skill differs across development seeds")
-        selection_path = batch / f"selection/seed-{seed}/hotpotqa.json"
+        selection_path = batch / f"selection/seed-{seed}/{dataset}.json"
         selection = _read(selection_path)
         skill = run_dirs["original"] / "upstream/best_skill.md"
         suffix = skill.relative_to(batch).as_posix()
@@ -139,17 +149,18 @@ def load_heldout_plan(source_batch: str | Path) -> dict[str, Any]:
     manifest = verify_manifest(resolve_path(shared["data"]["split_dir"]))
     verify_manifest_reference(manifest, resolve_path(shared["data"]["manifest"]))
     if (
-        manifest != manifests[0] or manifest.get("synthetic")
-        or {key: value["count"] for key, value in manifest["splits"].items()} != _SIZES
+        manifest != manifests[0] or manifest.get("synthetic") or manifest.get("dataset") != dataset
+        or {key: value["count"] for key, value in manifest["splits"].items()} != sizes
     ):
-        raise ValueError("Held-out data must match the source's fixed real 300/150/1000 partitions")
+        raise ValueError(f"Held-out data must match the source's fixed real {dataset} partitions: {sizes}")
     current_identity = capture_model_identity(shared["model"], synthetic=False)
     for key in ("fingerprint_sha256", "precision", "attention_implementation", "device"):
         if current_identity.get(key) != identities[0].get(key):
             raise ValueError("Current model fingerprint or inference runtime differs from development")
     if not current_identity.get("fingerprint_sha256"):
         raise ValueError("A verified local model fingerprint is required")
-    return {"source_batch": batch, "configs": configs, "initial": initial, "selected": selected,
+    return {"source_batch": batch, "dataset": dataset, "configs": configs,
+            "initial": initial, "selected": selected,
             "data_manifest": manifest, "model_identity": current_identity, "source_evidence": evidence}
 
 
@@ -158,7 +169,7 @@ def run_heldout(source_batch: str | Path) -> Path:
     frozen = load_heldout_plan(source_batch)
     source = frozen["source_batch"]
     first = frozen["configs"][str(SEEDS[0])]
-    report = RunStore(resolve_path(first["experiment"]["output_root"]) / "heldout-hotpotqa")
+    report = RunStore(resolve_path(first["experiment"]["output_root"]) / f"heldout-{frozen['dataset']}")
     report.save_snapshot(frozen["configs"], environment_snapshot(offline=False), source_snapshot())
     report.save_json("source_evidence.json", frozen["source_evidence"])
     report.save_json("model_identity.json", frozen["model_identity"])
@@ -202,7 +213,9 @@ def run_heldout(source_batch: str | Path) -> Path:
                          ])})
     scope = {
         "purpose": "member_a_frozen_heldout_evaluation", "source_batch": str(source),
-        "split": "test", "n_per_run": 1000, "seeds": list(SEEDS), "conditions": list(CONDITIONS),
+        "dataset": frozen["dataset"], "split": "test",
+        "n_per_run": frozen["data_manifest"]["splits"]["test"]["count"],
+        "seeds": list(SEEDS), "conditions": list(CONDITIONS),
         "optimization_allowed": False, "test_feedback_to_method_development_allowed": False,
         "member_b_improved_and_ablation_included": False,
         "note": "Only frozen A conditions; no skill reselection or inference-setting tuning after test",
@@ -254,7 +267,7 @@ def resume_heldout(held_out_batch: str | Path) -> Path:
         summary = row.get("summary") or {}
         if (
             row.get("status") in {"completed", "completed_with_errors"}
-            and summary.get("n") == 1000 and summary.get("split") == "test"
+            and summary.get("n") == scope["n_per_run"] and summary.get("split") == "test"
         ):
             done[row["seed"], row["condition"]] = {
                 key: value for key, value in row.items() if key not in {"event", "timestamp"}
@@ -297,9 +310,9 @@ def _execute(
                     result.update(path=str(path), status=summary["status"], summary=summary)
                     if (
                         summary["status"] not in {"completed", "completed_with_errors"}
-                        or summary.get("n") != 1000 or summary.get("split") != "test"
+                        or summary.get("n") != scope["n_per_run"] or summary.get("split") != "test"
                     ):
-                        raise RuntimeError("Held-out subrun did not complete all 1000 fixed test examples")
+                        raise RuntimeError("Held-out subrun did not complete all fixed test examples")
                     identity = _read(path / "model_identity.json")
                     if identity.get("fingerprint_sha256") != frozen["model_identity"]["fingerprint_sha256"]:
                         raise RuntimeError("Evaluated model differs from the frozen development model")
@@ -327,7 +340,7 @@ def _execute(
         error = f"{type(exc).__name__}: {exc}"
         raise
     finally:
-        complete = stopped and len(results) == 9 and all(
+        complete = stopped and len(results) == len(jobs) and all(
             row["status"] in {"completed", "completed_with_errors"} for row in results
         )
         warnings = any(row["status"] == "completed_with_errors" for row in results)

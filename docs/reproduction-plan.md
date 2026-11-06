@@ -4,7 +4,9 @@
 
 ## 当前进度
 
-两数据集的无技能、初始技能、三轮原始 GraphSkillEvo 和选中技能重复验证已完成，共八个子运行。结果和限制见 [formal-results.md](formal-results.md)。这些是种子 42 的验证集成绩；测试集未向模型执行。
+SearchQA已在Linux conda `jev` 完成seed0、42、127的新开发与冻结测试：12/12开发子运行、9/9测试子运行成功，保持PDF的100/30/50及三轮上限。测试EM/F1均值为无技能64.67/71.88、初始技能62.67/70.63、原方法选定技能63.33/69.73；原方法未优于无技能。证据和完整性检查见[本次审计](../outputs/reports/searchqa-linux/20261106T074952Z/audit-results.json)，逐种子表和技能图位于同目录。B的改进/消融、C的失败分类和机制分析仍由对应成员完成。
+
+旧双数据集批次的无技能、初始技能、三轮原始 GraphSkillEvo 和选中技能重复验证已完成，共八个子运行。结果和限制见 [formal-results.md](formal-results.md)。这些是种子42的历史验证集成绩；该开发批次自身不执行测试。
 
 以上 HotpotQA 属于旧的未分层 100/30/50 划分。新方案为 **300/150/1000**，已经完成 seed 0、42、127 的12个子运行，原方法各三轮；结果见 [HotpotQA v2 汇总](hotpotqa-v2-results.md)。选定技能验证 EM/F1 均值为70.89/82.36，测试未评估，整体规模相对PDF的限额差异继续披露。新结果与旧划分及中断批次独立保存。
 
@@ -52,6 +54,17 @@ python scripts/run_formal.py
 
 后续实验种子已确定为 **`[0, 42, 127]`**。`experiment.seed` 是单次批次的整数种子，当前默认仍为 42；根配置注释记录完整种子方案。保持 `preparation.seed`、`preparation.pilot_seed`、固定 ID 和分区不变，各方法使用相同的三个实验种子。
 
+当前 Linux conda `jev` 的 SearchQA 独立入口如下。它在同一环境重新运行三个种子的全部 A 开发条件，不调用 HotpotQA，也不复用旧 Windows 模型输出：
+
+```bash
+conda activate jev
+python scripts/run_formal.py --dataset searchqa --seeds 0 42 127 --set experiment.output_root=outputs/linux-transformers
+```
+
+固定100/30/50、三轮及原course预算不变。每种子包含三项条件和选定技能重复验证，共12个开发子运行。
+本次开发全部完成后，将打印的批次路径传给 `--test-from-batch`；入口冻结每种子的最终技能，单独完成九组50题测试。
+三种子是团队实验计划，不是PDF额外要求；同一测试子集跨种子复用，不能当成150道独立测试题。
+
 已有 seed 42 的完整批次。确认模型文件、数据、有效实验参数和方法语义一致后，可保留它并补跑 0、127；若改变公共协议，则在新协议下重跑全部三个种子，不混合不同设置的结果。补跑命令为：
 
 ```powershell
@@ -91,6 +104,15 @@ C 基于选定技能的完整验证预测建立全部 EM=0 的失败清单、分
 ```powershell
 python scripts/run_formal.py --test-from-batch outputs/provisional-hotpotqa/20261102T050827834273Z-ae48d3
 ```
+
+对于上述新Linux SearchQA批次，使用同一冻结入口，自动识别100/30/50方案：
+
+```bash
+python scripts/run_formal.py --test-from-batch outputs/linux-transformers/formal/<本次SearchQA开发批次>
+```
+
+SearchQA测试输出位于独立 `outputs/linux-transformers/heldout-searchqa/`，共三个种子 × 三条件 × 50题 = 450次题目评估。
+该入口在任何测试推理前验证开发记录、选定技能、固定数据和模型身份；测试不执行进化，也不接受额外种子、数据集或参数覆盖。
 
 测试模式不用 `--config`、`--set`、`--seeds` 覆盖；配置来自已完成开发批次，不能根据测试结果另选种子、技能或推理参数。输出为独立 `outputs/heldout-hotpotqa/` 批次，其中先保存冻结清单、技能与数据副本，再启动服务。B 的改进／消融仍由 B 完成，不能读取本测试的样例和失败来继续设计方法。
 

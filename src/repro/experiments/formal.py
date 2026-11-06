@@ -21,12 +21,16 @@ DATASETS = ("searchqa", "hotpotqa")
 CONDITIONS = ("no_skill", "initial_skill", "original", "selected_val")
 
 
-def load_formal_configs(path: str | Path, overrides: list[str] | None = None) -> dict[str, dict[str, Any]]:
+def load_formal_configs(
+    path: str | Path, overrides: list[str] | None = None, *, datasets: tuple[str, ...] = DATASETS,
+) -> dict[str, dict[str, Any]]:
     """Require the agreed course sizes and reserve test inference for a later phase."""
+    if not datasets or len(set(datasets)) != len(datasets) or set(datasets) - set(DATASETS):
+        raise ValueError("Formal datasets must be distinct SearchQA/HotpotQA names")
     configs = {
-        name: load_config(path, overrides, presets=["course", f"{name}.course"]) for name in DATASETS
+        name: load_config(path, overrides, presets=["course", f"{name}.course"]) for name in datasets
     }
-    common = configs[DATASETS[0]]["model"]
+    common = configs[datasets[0]]["model"]
     for name, config in configs.items():
         if config["model"] != common or common["backend"] != "transformers":
             raise ValueError("Formal comparisons require one shared Transformers model")
@@ -59,10 +63,13 @@ def validate_original_protocol(config: dict[str, Any]) -> None:
         raise ValueError("Formal member A comparisons require the agreed three-round original protocol")
 
 
-def run_formal(path: str | Path = "config.yaml", overrides: list[str] | None = None) -> Path:
-    """Execute six comparisons and two repeated selected-skill validation evaluations."""
-    configs = load_formal_configs(path, overrides)
-    return run_comparison_batch(configs)
+def run_formal(
+    path: str | Path = "config.yaml", overrides: list[str] | None = None, *,
+    datasets: tuple[str, ...] = DATASETS, seeds: list[int] | None = None,
+) -> Path:
+    """Execute course comparisons and selected-skill validation for the requested datasets/seeds."""
+    configs = load_formal_configs(path, overrides, datasets=datasets)
+    return run_comparison_batch(configs, seeds=seeds)
 
 
 def _experiment_seeds(configs: dict[str, dict[str, Any]], seeds: list[int] | None) -> list[int]:
