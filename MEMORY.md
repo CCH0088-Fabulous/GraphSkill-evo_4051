@@ -14,7 +14,7 @@ Keep configuration values in `config.yaml`; keep measurements in their original 
 - Use native Windows by default. Do not install or enable WSL. Existing Linux is an optional route.
 - Do not download model weights without an explicit request. Bootstrap and serving must use existing local weights; non-weight assets require an explicit allowlist.
 - During long GPU experiments, waiting is acceptable. Use GPT-6 luna for model-run monitoring when delegation is available; keep monitoring read-only and avoid frequent empty progress updates.
-- HotpotQA experiments remain explicitly stopped. The latest authorized local change is fixing the sampling-instruction rename; do not restart services/tests, install Linux dependencies or implement batching as part of that change. Preserve test outputs and do not feed cases/results back to evolution, selectors, prompts, tuning or skill selection. Root config stays test-disabled.
+- (Superseded 2026-11-06: the user later authorized and completed Linux development and held-out runs; see the Linux sections below. New experiments still need explicit authorization.) HotpotQA experiments were explicitly stopped. The latest authorized local change is fixing the sampling-instruction rename; do not restart services/tests, install Linux dependencies or implement batching as part of that change. Preserve test outputs and do not feed cases/results back to evolution, selectors, prompts, tuning or skill selection. Root config stays test-disabled.
 - After modifying code, configuration or documentation, finish the user-facing response with a suggested Git commit message. This preference does not request an automatic commit or push. For a purely analytical answer, omit the commit suggestion.
 
 ## Project and source of truth
@@ -39,6 +39,14 @@ Keep configuration values in `config.yaml`; keep measurements in their original 
 - Linux development batch: `outputs/linux-transformers/provisional-hotpotqa/20261105T072112040851Z-f6995e/`, 12/12 subruns completed, 13,050 s wall (Windows batch 19,121 s), no test inference. Selected-skill validation EM/F1 percent: seed0 72.67/81.61, seed42 72.67/82.77, seed127 70.67/80.96. Usage/truncation not yet audited. The old Windows test plan was refused by the source-checksum guard; the user then authorized the held-out test on this Linux batch (2026-11-05). Linux lock: `requirements/lock.linux.txt`.
 
 - Held-out resume (2026-11-05): `python scripts/run_formal.py --resume-heldout <heldout batch>` keeps finished subruns and reruns the rest into new run directories (per-subrun, not per-question). The old byte-for-byte project-source checksum guard in `load_heldout_plan` was removed at the user's request (it existed for the Windows-to-Linux move); frozen skills, data, test IDs, development evidence and model fingerprint are still verified. Live Linux test batch `outputs/linux-transformers/heldout-hotpotqa/20261105T112146929163Z-4a94eb/` was started before this edit.
+
+## Linux held-out test (member A, completed)
+
+- Batch `outputs/linux-transformers/heldout-hotpotqa/20261105T112146929163Z-4a94eb/`, source dev batch `outputs/linux-transformers/provisional-hotpotqa/20261105T072112040851Z-f6995e`. Started 2026-11-05 19:21 Asia/Shanghai, stopped cleanly after 6/9 subruns at the user's shutdown, resumed 2026-11-06 08:44 with `--resume-heldout` (resume_attempt 1), completed ~11:00. Status `completed`, no error; 9 x 1000 test questions.
+- The interrupted seed127/no_skill partial run is preserved unscored in its original directory; its usage is not in the summary totals. Resume segment 6,881 s; first segment time not summed. Summary totals: 9000 calls, 17,151,890 input and 1,302,967 output tokens, 0 failed/pending/unknown usage, 20 truncated predictions scored zero.
+- Test EM/F1 percent, mean over seeds 0/42/127: no_skill 63.40/78.24; initial_skill 60.93/74.93; selected 63.43/77.53. Per seed no_skill 63.20/78.07, 62.70/77.68, 64.30/78.97; initial 60.90/75.26, 61.10/75.11, 60.80/74.43; selected 63.40/77.53, 63.20/77.31, 63.70/77.76.
+- Reading: initial skill is below no_skill on every seed; the evolved skill recovers that loss but only ties no_skill on EM and is slightly below on F1. The development gain did not carry over. Numbers come from summary.json only; per-question recomputation, usage audit and paired statistics are not done. Test results must not feed back into method design, prompts, tuning or skill selection. B (improved selector, ablation) and C (failure analysis, scoring checks) remain open.
+- Leftover issue: my auto-stop helper matched only the main process and missed the model server (PID was stopped manually afterward); do not reuse it unchanged.
 
 ## Experimental boundaries
 
