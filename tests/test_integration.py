@@ -243,3 +243,47 @@ def test_evolution_keeps_a_completed_zero_em_batch_as_a_valid_skill_score(tmp_pa
         [example().to_dict()], "", str(store.path / "upstream" / "evaluation"),
     )
     assert rows[0]["status"] == "ok" and rows[0]["hard"] == 0
+
+
+@pytest.mark.parametrize("condition", ["improved", "ablation"])
+def test_registered_selector_switches_condition_and_is_recorded(tmp_path, monkeypatch, condition):
+    from repro import selectors
+
+    class FirstK:
+        def __init__(self):
+            self.calls = []
+
+        def select(self, rows, *, k, seed):
+            self.calls.append(k)
+            return [row for row in rows if float(row.get("em", row.get("hard", 1))) < 1e-9][:k]
+
+    placeholder = FirstK()
+    monkeypatch.setattr(selectors, "_REGISTRY", dict(selectors._REGISTRY))
+    selectors.register_selector(condition, placeholder)
+    config = fixture_config()
+    config["experiment"]["condition"] = condition
+    config["evolution"]["selector"] = condition
+    store = RunStore(tmp_path, condition)
+    client = offline_client(store)
+    run_evolution(config, client, store)
+    assert (store.path / "upstream/best_skill.md").is_file()
+    events = [json.loads(line) for line in (store.path / "events.jsonl").read_text(
+        encoding="utf-8").splitlines()]
+    batches = [event for event in events if event["event"] == "training_failure_batch"]
+    # The bridge records only batches that feed the optimizer (k > 0); k == 0 calls are not logged.
+    used = [k for k in placeholder.calls if k > 0]
+    assert used and len(batches) == len(used)
+    assert {event["selector"] for event in batches} == {condition}
+    assert all(set(event["selected_ids"]) <= set(event["source_ids"]) for event in batches)
+    assert all(len(event["selected_ids"]) <= config["evolution"]["reflection_failure_k"] for event in batches)
+
+
+def test_unregistered_selector_name_fails_before_any_model_call(tmp_path):
+    config = fixture_config()
+    config["experiment"]["condition"] = "improved"
+    config["evolution"]["selector"] = "improved"
+    store = RunStore(tmp_path)
+    client = offline_client(store)
+    with pytest.raises(NotImplementedError, match="member B"):
+        run_evolution(config, client, store)
+    assert client.ledger.summary()["calls"] == 0

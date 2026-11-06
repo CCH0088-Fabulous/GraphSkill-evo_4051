@@ -144,6 +144,12 @@ python scripts/gguf.py inspect
 
 ## 代码阅读与检查
 
+技能进化谱系图可从任一进化运行导出（每个 `original` 运行也已自带 `graphs/lineage.mmd`）。本命令额外标出最终保留和被选中的候选，输出文件不得已存在：
+
+```bash
+python -m repro render-lineage --run outputs/.../runs/seed-0/hotpotqa/original/<运行目录> --output outputs/reports/lineage/seed-0.mmd
+```
+
 核心过程为：训练执行产生失败反馈 → 选择失败案例 → 变异或交叉技能 → 验证集排名与保留 → 保存选定技能 → 单独评估。
 
 | 阅读位置 | 职责 |

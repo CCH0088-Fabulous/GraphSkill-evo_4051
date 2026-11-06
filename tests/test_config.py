@@ -222,7 +222,11 @@ def test_base_must_be_one_nonempty_path_string(tmp_path, value):
         load_config(path)
 
 
-def test_standalone_config_keeps_builtin_defaults_without_implicit_project_base(tmp_path):
+def test_standalone_config_keeps_builtin_defaults_without_implicit_project_base(tmp_path, monkeypatch):
+    # Isolate from the developer's real .env and process environment (e.g. REPRO_MODEL_PATH).
+    monkeypatch.setattr("repro.config.PROJECT_ROOT", tmp_path)
+    for name in ("REPRO_MODEL_NAME", "REPRO_BASE_URL", "REPRO_MODEL_PATH"):
+        monkeypatch.delenv(name, raising=False)
     path = tmp_path / "standalone.yaml"
     path.write_text("experiment:\n  seed: 9\n")
     assert load_config(path)["model"] == DEFAULTS["model"]

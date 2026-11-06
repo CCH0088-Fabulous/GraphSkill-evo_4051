@@ -44,6 +44,9 @@ def build_parser() -> argparse.ArgumentParser:
     render = sub.add_parser("render-skill", help="Export a saved skill's internal flowchart")
     render.add_argument("--skill", type=Path, required=True)
     render.add_argument("--output", type=Path, required=True)
+    lineage = sub.add_parser("render-lineage", help="Export one evolution run's candidate ancestry")
+    lineage.add_argument("--run", type=Path, required=True)
+    lineage.add_argument("--output", type=Path, required=True)
     return parser
 
 
@@ -102,6 +105,15 @@ def _dispatch(args: argparse.Namespace) -> int:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         with args.output.open("x", encoding="utf-8") as stream:
             stream.write(content + "\n")
+        print(args.output.resolve())
+        return 0
+    if args.command == "render-lineage":
+        from repro.visualization.lineage import lineage_to_mermaid, run_lineage_records
+
+        content = lineage_to_mermaid(run_lineage_records(args.run))
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        with args.output.open("x", encoding="utf-8") as stream:
+            stream.write(content)
         print(args.output.resolve())
         return 0
     if args.command == "smoke":

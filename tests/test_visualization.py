@@ -79,3 +79,30 @@ def test_prose_keeps_bullets_and_cannot_inject_mermaid_structure():
 def test_active_embedded_mermaid_is_rejected(active):
     with pytest.raises(ValueError, match="active content"):
         skill_to_mermaid(f"```mermaid\n{active}\n```\n")
+
+
+def test_run_lineage_reads_history_and_marks_survivors_and_selection(tmp_path):
+    import json
+
+    from repro.visualization.lineage import run_lineage_records
+
+    population = [
+        {"id": "g0000_i0000", "origin": "initial_skill", "parent_ids": [], "generation": 0, "val_hard": 0.6},
+        {"id": "g0000_i0001", "origin": "llm_initialization", "parent_ids": [], "generation": 0,
+         "val_hard": 0.7},
+    ]
+    child = {"id": "g0001_i0000", "origin": "mutation_graph", "parent_ids": ["g0000_i0001"],
+             "generation": 1, "val_hard": 0.75}
+    history = [
+        {"generation": 0, "population": population},
+        {"generation": 1, "offspring": [child], "next_population": [child, population[1]]},
+    ]
+    (tmp_path / "history.jsonl").write_text("\n".join(json.dumps(row) for row in history) + "\n")
+    (tmp_path / "run_summary.json").write_text(json.dumps({"best": {"id": "g0001_i0000"}}))
+    records = {row["skill_id"]: row for row in run_lineage_records(tmp_path)}
+    assert set(records) == {"g0000_i0000", "g0000_i0001", "g0001_i0000"}
+    assert records["g0000_i0000"]["retained"] is False
+    assert records["g0001_i0000"]["retained"] and records["g0001_i0000"]["selected"]
+    assert not records["g0000_i0001"]["selected"]
+    diagram = lineage_to_mermaid(records.values())
+    assert "-->" in diagram and "selected: True" in diagram
