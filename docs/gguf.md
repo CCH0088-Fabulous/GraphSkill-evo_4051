@@ -1,6 +1,8 @@
-# GGUF 备用后端
+# GGUF 后端（已弃用 / deprecated）
 
-GGUF 的检查、运行库安装和服务启动统一由 `scripts/gguf.py` 提供。主实验使用 Transformers 加载 Qwen3.5-9B；GGUF 保留为后续量化模型的备用路线。
+GGUF 模型与 `local.gguf` 方案已弃用；仅保留旧接口和历史记录，新环境不安装此运行库或准备 GGUF 权重。当前实验使用 Transformers 加载完整 Qwen3.5-9B，路径设置见 [README](../README.md#模型与数据设置)。
+
+下列命令仅记录历史接口，不属于新机器的设置步骤。GGUF 的检查、运行库安装和服务启动统一由 `scripts/gguf.py` 提供；现有代码保留以兼容旧记录，不将其成绩混入当前正式实验。
 
 ## 配置
 

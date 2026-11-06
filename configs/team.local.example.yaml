@@ -1,14 +1,11 @@
 # Copy this file to configs/team.local.yaml and edit paths for your machine.
 # This is a SearchQA pilot configuration; course profiles use recorded data identities.
 _base_: ../config.yaml
+_presets_: [searchqa.pilot]
 
 model:
-  local_path: E:/Qwen3.5-9B  # Complete local model directory, including weights.
+  local_path: /home/admin1/Qwen3.5-9B  # Replace with your complete model; Windows: E:/Qwen3.5-9B.
   base_url: http://127.0.0.1:8000/v1
-
-data:
-  dataset: searchqa
-  split_dir: data/pilot/searchqa
 
 experiment:
   output_root: outputs

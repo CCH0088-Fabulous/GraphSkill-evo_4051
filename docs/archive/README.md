@@ -7,4 +7,4 @@
 
 v1 原始清单仍保存在 `manifests/experiment-v1/`，不再强制锁定组员的路径或环境。固定数据 ID、来源 revision、原始数据校验值和分区边界仍在运行前验证。
 
-最新进度见 [正式开发集结果](../formal-results.md)，后续分工及验收见 [复现步骤](../reproduction-plan.md)。已完成实验的原始输出不因代码精简而删除或改写。
+最新 Linux 开发与测试见 [成员 A 报告](../member-a-report.md)，后续分工见 [复现步骤](../reproduction-plan.md)，B/C 本人执行状态见 [独立验收记录](../reproduction-acceptance.md)。已完成实验的原始输出不因文档更新而删除或改写。

@@ -1,2 +1,3 @@
+# DEPRECATED: historical GGUF compatibility only; use the Transformers presets for new runs.
 _base_: ../config.yaml
 _presets_: [local.gguf]

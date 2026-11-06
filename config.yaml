@@ -1,11 +1,14 @@
 # Shared settings, data preparation, and experiment presets.
 # Small files under configs/ select these presets for existing commands.
+# All relative model/data paths resolve from the repository root, not configs/.
+# On another machine, edit model.local_path or set REPRO_MODEL_PATH locally.
+# Nonempty REPRO_MODEL_PATH in .env / the process environment overrides YAML.
 model:
   backend: transformers
   name: Qwen/Qwen3.5-9B
   base_url: http://127.0.0.1:8000/v1
   api_key_env: REPRO_API_KEY
-  local_path: E:/Qwen3.5-9B
+  local_path: /home/admin1/Qwen3.5-9B  # Complete local Transformers model, including weights.
   max_context_tokens: 16384
   max_completion_tokens: 4096
   temperature: 0.6
@@ -19,7 +22,7 @@ model:
 data:
   dataset: searchqa
   split_dir: data/processed/searchqa
-  manifest: null
+  manifest: null  # Dataset presets below bind the appropriate frozen reference.
 
 experiment:
   condition: original
@@ -50,13 +53,14 @@ budget:
 
 # Dataset preparation never downloads model weights.
 preparation:
-  raw_cache_dir: data/raw
-  searchqa_manifest_dir: third_party/GraphSkillEvo/data/searchqa_id_split
+  raw_cache_dir: data/raw  # Downloaded benchmark data/cache, not experiment-ready splits.
+  searchqa_manifest_dir: third_party/GraphSkillEvo/data/searchqa_id_split  # Pinned upstream IDs.
   searchqa_revision: c1a979068ba118d85467179b704031d113d689cc
   hotpotqa_revision: 1908d6afbbead072334abe2965f91bd2709910ab
   searchqa_download_mode: parquet
   hotpotqa_download_mode: parquet
   hotpotqa_source: official-public
+  # Optional LOCAL raw inputs. Keep null when reusing A's prepared data.
   searchqa_raw_path: null
   hotpotqa_raw_train: null
   hotpotqa_raw_val: null
@@ -75,6 +79,10 @@ preparation:
   pilot_train_count: 10
   pilot_val_count: 5  # Pilot data never includes the held-out test partition.
 
+# Dataset locations live here; configs/*.yaml only select presets.
+# Copy complete split directories (including split_manifest.json) from A.
+# If relocating data, edit the corresponding split_dir, keeping the SAME data
+# and frozen manifest below. Do not resample or disable a manifest to fix paths.
 # Presets are composed in the order listed by each file in configs/.
 presets:
   course:
@@ -101,11 +109,13 @@ presets:
       split_dir: data/processed/searchqa
       manifest: manifests/data-v1/searchqa.json
   hotpotqa.course:
+    # Historical 100/30/50 parent for the engineering pilot, not the current protocol.
     data:
       dataset: hotpotqa
       split_dir: data/processed/hotpotqa
       manifest: manifests/data-v1/hotpotqa.json
   hotpotqa.provisional:
+    # Current hotpot_split.md protocol: 300/150/1000; name retained for compatibility.
     data:
       dataset: hotpotqa
       split_dir: data/processed/hotpotqa-stratified-v2
@@ -117,6 +127,7 @@ presets:
       max_calls: 3000
       max_completion_tokens: 10000000
   searchqa.pilot:
+    # Real 10/5/0 engineering checks; make_pilot_data.py reads *.course parents.
     data:
       dataset: searchqa
       split_dir: data/pilot/searchqa
@@ -137,6 +148,8 @@ presets:
       split_dir: tests/fixtures/hotpotqa
       manifest: null
   local.gguf:
+    # DEPRECATED: historical Qwen3.8-27B GGUF backend, retained for old artifacts only.
+    # New setup and experiments use model.backend=transformers / Qwen3.5-9B above.
     model:
       backend: llama_cpp
       name: Qwen3.8-27B-Q4_K_M
